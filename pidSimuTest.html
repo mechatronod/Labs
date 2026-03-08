@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hassas PID Laboratuvarı - okanduymazlar.com</title>
+    <style>
+        body { background: #f0f2f5; font-family: 'Segoe UI', sans-serif; padding: 20px; margin: 0; }
+        .container { background: #fff; border: 2px solid #2c3e50; border-radius: 12px; max-width: 1100px; margin: auto; padding: 25px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); }
+        .lcd { display: flex; justify-content: space-around; background: #000; color: #0f0; padding: 15px; border-radius: 8px; font-family: monospace; font-size: 20px; margin-bottom: 20px; border: 4px solid #333; box-shadow: inset 0 0 10px #000; }
+        .main-grid { display: grid; grid-template-columns: 320px 1fr; gap: 20px; }
+        .panel { display: flex; flex-direction: column; gap: 15px; }
+        .card { background: #fff; padding: 15px; border: 1px solid #ddd; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        canvas { background: #000; border: 3px solid #333; border-radius: 8px; width: 100%; height: auto; cursor: crosshair; }
+        input[type=range] { width: 100%; margin: 8px 0; cursor: pointer; }
+        button { width: 100%; padding: 12px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 14px; transition: 0.2s; }
+        .btn-pause { background: #e67e22; color: white; }
+        .btn-reset { background: #2c3e50; color: white; margin-top: 5px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 25px; background: #fff; font-size: 14px; }
+        th, td { border: 1px solid #ddd; padding: 12px; text-align: center; }
+        th { background: #2c3e50; color: white; }
+        .instruction { margin-top: 20px; padding: 15px; background: #fff8e1; border-left: 5px solid #ffc107; font-size: 14px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h3 style="text-align: center; color: #2c3e50; margin-top: 0;">🚀 PID ve Ziegler-Nichols Analiz Sistemi</h3>
+
+    <div class="lcd">
+        <span>HEDEF: <b id="real-sp">50</b></span>
+        <span>MEVCUT: <b id="real-pv">0</b></span>
+        <span style="color: #ffa500;">PWM: %<b id="real-pwm">0</b></span>
+        <span>DURUM: <b id="real-status" style="color:#0f0">ÇALIŞIYOR</b></span>
+    </div>
+
+    <div class="main-grid">
+        <div class="panel">
+            <div class="card">
+                <label style="font-size:12px; font-weight:bold;">Hedef (SP): <b id="txt-sp">50</b></label>
+                <input type="range" id="input-sp" min="10" max="90" value="50">
+                <label style="font-size:12px; font-weight:bold; color:#d35400;">Kp (Oransal): <b id="txt-kp">1.0</b></label>
+                <input type="range" id="input-kp" min="0" max="60" step="0.1" value="1.0">
+                <label style="font-size:12px; font-weight:bold; color:#27ae60;">Ki (İntegral): <b id="txt-ki">0.00</b></label>
+                <input type="range" id="input-ki" min="0" max="10" step="0.01" value="0.00">
+                <label style="font-size:12px; font-weight:bold; color:#2980b9;">Kd (Türev): <b id="txt-kd">0.00</b></label>
+                <input type="range" id="input-kd" min="0" max="10" step="0.05" value="0.00">
+                <button class="btn-pause" id="btn-pause" onclick="togglePause()">⏸ DONDUR VE ÖLÇ</button>
+                <button class="btn-reset" onclick="resetSim()">SIFIRLA</button>
+            </div>
+
+            <div class="card" style="background: #f1f8ff; border: 1px solid #2980b9;">
+                <h4 style="margin:0 0 10px 0; font-size:14px; color:#2980b9;">🔍 Osiloskop Zoom</h4>
+                <small>Dikey Ölçek (Y):</small>
+                <input type="range" id="input-y-zoom" min="2" max="30" value="10">
+                <small>Zaman Ekseni (X):</small>
+                <input type="range" id="input-x-zoom" min="0.5" max="5" step="0.2" value="2">
+            </div>
+
+            <div class="card">
+                <h4 style="margin:0 0 10px 0; font-size:14px;">Z-N Hesaplayıcı</h4>
+                <div style="display:flex; gap:5px; margin-bottom:10px;">
+                    <input type="number" id="zn-ku" placeholder="Ku" style="width:45%; padding:5px;">
+                    <input type="number" id="zn-tu" placeholder="Tu(sn)" style="width:45%; padding:5px;">
+                </div>
+                <button onclick="calculateZN()" style="background:#2980b9; color:white; border-radius:4px; padding:8px; width:100%;">HESAPLA</button>
+                <div id="zn-result" style="display:none; margin-top:10px; font-size:12px; border-top:1px dashed #ccc; padding-top:10px;">
+                    <b>İdeal:</b> Kp:<b id="res-kp"></b> | Ki:<b id="res-ki"></b> | Kd:<b id="res-kd"></b>
+                </div>
+            </div>
+        </div>
+
+        <div style="position: relative; background: #000; border-radius: 8px;">
+            <canvas id="graphV13" width="800" height="550"></canvas>
+            <div style="position: absolute; bottom: 15px; left: 15px; color: #0f0; font-size: 11px; background: rgba(0,0,0,0.6); padding: 5px; border-radius:3px;">
+                Grid: Dikey çizgiler arası 0.2 Saniye
+            </div>
+        </div>
+    </div>
+
+    <div class="instruction">
+        <strong>Rehber:</strong> Ku kritik kazancını bulmak için dalga boyunun sabit kaldığı (sönümlenmediği) noktayı yakalayın.
+    </div>
+
+    <table>
+        <thead>
+            <tr><th>Yöntem</th><th>Kp</th><th>Ki (Katsayı)</th><th>Kd (Katsayı)</th></tr>
+        </thead>
+        <tbody>
+            <tr><td>P Kontrol</td><td>0.50 * Ku</td><td>0</td><td>0</td></tr>
+            <tr style="background:#f9f9f9;"><td>PI Kontrol</td><td>0.45 * Ku</td><td>1.2 * Kp / Tu</td><td>0</td></tr>
+            <tr><td><b>PID Kontrol</b></td><td><b>0.60 * Ku</b></td><td><b>2.0 * Kp / Tu</b></td><td><b>Kp * Tu / 8</b></td></tr>
+        </tbody>
+    </table>
+</div>
+
+<script>
+(function() {
+    const canvas = document.getElementById('graphV13');
+    const ctx = canvas.getContext('2d');
+    
+    let sim = {
+        sp: 50, kp: 1.0, ki: 0.0, kd: 0.0, pv: 0, integral: 0, lastError: 0,
+        pwm: 0, history: [], dt: 0.05, frameCount: 0, isPaused: false, 
+        yZoom: 10, xZoom: 2
+    };
+
+    function runLoop() {
+        if (!sim.isPaused) {
+            let error = sim.sp - sim.pv;
+            sim.integral = Math.max(-15, Math.min(15, sim.integral + error * sim.dt));
+            let deriv = (error - sim.lastError) / sim.dt;
+            
+            let out = (sim.kp * error) + (sim.ki * sim.integral) + (sim.kd * deriv);
+            sim.pwm = Math.max(0, Math.min(100, out));
+            
+            sim.pv += (sim.pwm * 0.4 - sim.pv * 0.18) * 0.12; 
+
+            sim.lastError = error;
+            sim.frameCount++;
+            if(sim.frameCount % 4 === 0) {
+                sim.history.push({pv: sim.pv, sp: sim.sp});
+                if(sim.history.length > 800) sim.history.shift();
+            }
+        }
+        draw();
+        updateUI();
+        requestAnimationFrame(runLoop);
+    }
+
+    function draw() {
+        ctx.clearRect(0,0,canvas.width, canvas.height);
+        const center = canvas.height / 2;
+        const xStep = 30 * sim.xZoom;
+
+        ctx.strokeStyle = "#1a3a1a"; ctx.lineWidth = 1;
+        for(let i=0; i<=canvas.width; i += xStep) { ctx.beginPath(); ctx.moveTo(i,0); ctx.lineTo(i,canvas.height); ctx.stroke(); }
+        for(let i=0; i<=canvas.height; i+=40) { ctx.beginPath(); ctx.moveTo(0,i); ctx.lineTo(canvas.width,i); ctx.stroke(); }
+
+        ctx.strokeStyle = "rgba(255, 0, 0, 0.8)"; ctx.setLineDash([8, 4]);
+        ctx.beginPath(); ctx.moveTo(0, center); ctx.lineTo(canvas.width, center); ctx.stroke();
+        ctx.setLineDash([]);
+
+        ctx.strokeStyle = "#00ff00"; ctx.lineWidth = 4;
+        ctx.shadowBlur = 5; ctx.shadowColor = "#00ff00";
+        ctx.beginPath();
+        let pointsToDisplay = Math.floor(canvas.width / (xStep/8));
+        let startIdx = Math.max(0, sim.history.length - pointsToDisplay);
+        
+        for(let i = startIdx; i < sim.history.length; i++) {
+            let data = sim.history[i];
+            let x = (i - startIdx) * (xStep / 8);
+            let y = center - (data.pv - sim.sp) * sim.yZoom;
+            if(i === startIdx) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+        
+        if (sim.isPaused) {
+            ctx.fillStyle = "rgba(255, 165, 0, 0.2)";
+            ctx.fillRect(0,0,canvas.width, canvas.height);
+            ctx.fillStyle = "#ffa500"; ctx.font = "bold 18px monospace";
+            ctx.fillText("⏸ DONDURULDU: ANALİZ YAPABİLİRSİNİZ", 20, 30);
+        }
+    }
+
+    function updateUI() {
+        sim.sp = parseFloat(document.getElementById('input-sp').value);
+        sim.kp = parseFloat(document.getElementById('input-kp').value);
+        sim.ki = parseFloat(document.getElementById('input-ki').value);
+        sim.kd = parseFloat(document.getElementById('input-kd').value);
+        sim.yZoom = parseFloat(document.getElementById('input-y-zoom').value);
+        sim.xZoom = parseFloat(document.getElementById('input-x-zoom').value);
+        
+        document.getElementById('txt-sp').innerText = sim.sp;
+        document.getElementById('txt-kp').innerText = sim.kp.toFixed(1);
+        document.getElementById('txt-ki').innerText = sim.ki.toFixed(2);
+        document.getElementById('txt-kd').innerText = sim.kd.toFixed(2);
+        document.getElementById('real-sp').innerText = sim.sp;
+        document.getElementById('real-pv').innerText = sim.pv.toFixed(1);
+        document.getElementById('real-pwm').innerText = Math.round(sim.pwm);
+    }
+
+    window.togglePause = () => {
+        sim.isPaused = !sim.isPaused;
+        document.getElementById('real-status').innerText = sim.isPaused ? "DURDURULDU" : "ÇALIŞIYOR";
+        document.getElementById('real-status').style.color = sim.isPaused ? "#e74c3c" : "#0f0";
+        document.getElementById('btn-pause').innerText = sim.isPaused ? "▶ DEVAM ET" : "⏸ DONDUR VE ÖLÇ";
+    };
+
+    window.calculateZN = () => {
+        let ku = parseFloat(document.getElementById('zn-ku').value);
+        let tu = parseFloat(document.getElementById('zn-tu').value);
+        if (ku > 0 && tu > 0) {
+            let kp = 0.6 * ku; let ki = 2 * kp / tu; let kd = kp * tu / 8;
+            document.getElementById('res-kp').innerText = kp.toFixed(2);
+            document.getElementById('res-ki').innerText = ki.toFixed(2);
+            document.getElementById('res-kd').innerText = kd.toFixed(2);
+            document.getElementById('zn-result').style.display = 'block';
+        }
+    };
+
+    window.resetSim = () => { sim.pv = 0; sim.integral = 0; sim.history = []; if(sim.isPaused) togglePause(); };
+    runLoop();
+})();
+</script>
+</body>
+</html>
