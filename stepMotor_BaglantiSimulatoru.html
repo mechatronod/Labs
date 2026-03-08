@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Step Motor Bağlantı Laboratuvarı</title>
+    <style>
+        body { margin: 0; padding: 20px; background-color: #dcdde1; font-family: 'Segoe UI', sans-serif; display: flex; justify-content: center; }
+        #stepper-game { background: #f0f4f7; border: 2px solid #2c3e50; padding: 25px; border-radius: 15px; max-width: 980px; width: 100%; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
+        #multimeter { background: #222; color: #0be881; padding: 20px; border: 5px solid #444; border-radius: 10px; font-family: 'Courier New', monospace; font-size: 28px; width: 210px; text-align: center; box-shadow: inset 0 0 10px #000; }
+        .wire-unit:hover { transform: translateY(-3px); }
+        button { cursor: pointer; transition: 0.2s; border: none; border-radius: 8px; font-weight: bold; }
+        button:hover { opacity: 0.9; }
+        @media (max-width: 600px) { #wire-grid { grid-template-columns: repeat(2, 1fr) !important; } }
+    </style>
+</head>
+<body>
+
+<div id="stepper-game">
+    <h2 style="text-align:center; color:#2c3e50; margin-top:0;">Step Motor Bağlantı Laboratuvarı</h2>
+
+    <div id="scenario-box" style="background:#fff; padding:15px; border-left:5px solid #e67e22; margin-bottom:20px; box-shadow:0 2px 5px rgba(0,0,0,0.1);">
+        <strong>GÖREV:</strong> <span id="mission-text">Yükleniyor...</span>
+    </div>
+
+    <div style="display:flex; justify-content:space-around; align-items:center; gap:20px; flex-wrap:wrap; margin-bottom:25px;">
+        <div id="multimeter">
+            <small style="font-size:12px; color:#888; display:block;">RESISTANCE</small>
+            <span id="ohm-val">---</span> <small>Ω</small>
+        </div>
+
+        <div id="motor-visual" style="width:110px; height:110px; border-radius:50%; border:8px solid #95a5a6; display:flex; align-items:center; justify-content:center; background:#bdc3c7;">
+            <div style="width:80%; height:12px; background:#34495e; border-radius:5px;"></div>
+        </div>
+
+        <div style="background:#fff; padding:15px; border-radius:10px; min-width:280px; box-shadow:0 2px 5px rgba(0,0,0,0.08);">
+            <div><strong>Motor Tipi:</strong> <span id="motor-type-label">-</span></div>
+            <div style="margin-top:8px;"><strong>Seçilen Uçlar:</strong> <span id="selected-info">-</span></div>
+            <div style="margin-top:8px;"><strong>İpucu:</strong> <span id="hint-box">-</span></div>
+        </div>
+    </div>
+
+    <div id="wire-grid" style="display:grid; gap:15px; margin-bottom:25px;"></div>
+
+    <div style="text-align:center; border-top:2px solid #dcdde1; padding-top:20px;">
+        <button onclick="verifySubmission()" style="background:#27ae60; color:white; padding:12px 25px; font-size:16px;">BAĞLANTIYI TEST ET</button>
+        <button onclick="initSim()" style="background:#34495e; color:white; padding:12px 25px; font-size:16px; margin-left:10px;">YENİ MOTOR / RESET</button>
+    </div>
+
+    <div id="game-feedback" style="margin-top:20px; padding:15px; text-align:center; border-radius:8px; display:none;"></div>
+</div>
+
+<script>
+    (function() {
+        let state = { selected: [], motorType: 4, mission: null, model: null, animInterval: null };
+
+        const missions = [
+            { id: "basic4", type: 4, text: "4 kablolu motorda iki fazı bulun ve uçları A+, A-, B+, B- olarak etiketleyin.", hint: "Aynı fazın iki ucu arasında direnç vardır." },
+            { id: "basic6", type: 6, text: "6 kablolu motorda iki fazı ve orta uçları bulun. Uçları A+, Ac, A-, B+, Bc, B- olarak etiketleyin.", hint: "Uç-orta arası yarım, uç-uç arası tam direnç görülür." },
+            { id: "basic8", type: 8, text: "8 kablolu motorda yarım sargıları bulun. Uçları A1+, A1-, A2+, A2-, B1+, B1-, B2+, B2- olarak etiketleyin.", hint: "Sadece aynı yarım sargının uçları arasında direnç vardır." }
+        ];
+
+        // --- YARDIMCI ALGORİTMALAR ---
+        function shuffle(arr) { return [...arr].sort(() => Math.random() - 0.5); }
+        function sortNums(arr) { return [...arr].sort((a, b) => a - b); }
+        function sameArray(a, b) { return a.length === b.length && a.every((v, i) => v === b[i]); }
+        function sameSetOfPairs(sP, tP) {
+            const s = sP.map(p => sortNums(p).join("-")).sort().join("|");
+            const t = tP.map(p => sortNums(p).join("-")).sort().join("|");
+            return s === t;
+        }
+
+        // --- MOTOR GENERATOR ---
+        function generateMotor(type) {
+            const ids = shuffle([...Array(type).keys()]);
+            if (type === 4) return { type: 4, coils: { A: [ids[0], ids[1]], B: [ids[2], ids[3]] }, labels: { [ids[0]]: "A+", [ids[1]]: "A-", [ids[2]]: "B+", [ids[3]]: "B-" } };
+            if (type === 6) return { type: 6, coils: { A: [ids[0], ids[1], ids[2]], B: [ids[3], ids[4], ids[5]] }, labels: { [ids[0]]: "A+", [ids[1]]: "Ac", [ids[2]]: "A-", [ids[3]]: "B+", [ids[4]]: "Bc", [ids[5]]: "B-" } };
+            if (type === 8) return { type: 8, halfCoils: { A1: [ids[0], ids[1]], A2: [ids[2], ids[3]], B1: [ids[4], ids[5]], B2: [ids[6], ids[7]] }, labels: { [ids[0]]: "A1+", [ids[1]]: "A1-", [ids[2]]: "A2+", [ids[3]]: "A2-", [ids[4]]: "B1+", [ids[5]]: "B1-", [ids[6]]: "B2+", [ids[7]]: "B2-" } };
+        }
+
+        // --- ÖLÇÜM MANTIĞI ---
+        function measureResistance(w1, w2) {
+            const m = state.model;
+            if (w1 === w2) return "---";
+            if (m.type === 4) {
+                for (let p of Object.values(m.coils)) if (p.includes(w1) && p.includes(w2)) return "4.5";
+            } else if (m.type === 6) {
+                for (let p of Object.values(m.coils)) {
+                    if (p.includes(w1) && p.includes(w2)) {
+                        const pair = sortNums([w1, w2]);
+                        if (sameArray(pair, sortNums([p[0], p[1]])) || sameArray(pair, sortNums([p[1], p[2]]))) return "2.2";
+                        return "4.4";
+                    }
+                }
+            } else if (m.type === 8) {
+                for (let h of Object.values(m.halfCoils)) if (h.includes(w1) && h.includes(w2)) return "2.1";
+            }
+            return "∞";
+        }
+
+        // --- DOĞRULAMA FONKSİYONLARI (BURASI KRİTİK) ---
+        function verify4Wire(student) {
+            const map = {}; for(let i=0; i<4; i++) map[student[i]] = i;
+            if (["A+", "A-", "B+", "B-"].some(l => map[l] === undefined)) return { ok: false, msg: "Tüm etiketleri kullanmalısınız." };
+            
+            const sA = sortNums([map["A+"], map["A-"]]), sB = sortNums([map["B+"], map["B-"]]);
+            const tA = sortNums(state.model.coils.A), tB = sortNums(state.model.coils.B);
+
+            if ((sameArray(sA, tA) && sameArray(sB, tB)) || (sameArray(sA, tB) && sameArray(sB, tA))) {
+                return { ok: true, msg: "Tebrikler! Fazları doğru buldunuz." };
+            }
+            return { ok: false, msg: "Faz grupları yanlış. Sargıları tekrar ölçün." };
+        }
+
+        function verify6Wire(student) {
+            const map = {}; for(let i=0; i<6; i++) map[student[i]] = i;
+            if (["A+", "Ac", "A-", "B+", "Bc", "B-"].some(l => map[l] === undefined)) return { ok: false, msg: "Eksik etiketleme yaptınız." };
+            
+            const checkPhase = (p, t) => map[p+"c"] === t[1] && sameArray(sortNums([map[p+"+"], map[p+"-"]]), sortNums([t[0], t[2]]));
+            if ((checkPhase("A", state.model.coils.A) && checkPhase("B", state.model.coils.B)) || (checkPhase("A", state.model.coils.B) && checkPhase("B", state.model.coils.A))) {
+                return { ok: true, msg: "Harika! Orta uçlar ve fazlar tam isabet." };
+            }
+            return { ok: false, msg: "Orta uçlar veya faz grupları hatalı." };
+        }
+
+        function verify8Wire(student) {
+            const map = {}; for(let i=0; i<8; i++) map[student[i]] = i;
+            const sPairs = [ [map["A1+"], map["A1-"]], [map["A2+"], map["A2-"]], [map["B1+"], map["B1-"]], [map["B2+"], map["B2-"]] ];
+            const tPairs = Object.values(state.model.halfCoils);
+
+            if (sameSetOfPairs(sPairs, tPairs)) return { ok: true, msg: "Mükemmel! 4 yarım sargıyı da doğru tespit ettiniz." };
+            return { ok: false, msg: "Yarım sargı eşleşmeleri hatalı." };
+        }
+
+        // --- UI VE TETİKLEYİCİLER ---
+        function selectWire(id) {
+            if (state.selected.includes(id)) {
+                state.selected = state.selected.filter(x => x !== id);
+                document.getElementById("w-"+id).style.background = "#95a5a6";
+            } else if (state.selected.length < 2) {
+                state.selected.push(id);
+                document.getElementById("w-"+id).style.background = "#e74c3c";
+            }
+
+            if (state.selected.length === 2) {
+                document.getElementById("ohm-val").innerText = measureResistance(state.selected[0], state.selected[1]);
+                setTimeout(() => {
+                    state.selected.forEach(x => document.getElementById("w-"+x).style.background = "#95a5a6");
+                    state.selected = [];
+                }, 800);
+            }
+        }
+
+        window.verifySubmission = function() {
+            const student = {};
+            const usedLabels = [];
+            for(let i=0; i<state.motorType; i++) {
+                const val = document.getElementById("sel-"+i).value;
+                student[i] = val;
+                if(val !== "?") usedLabels.push(val);
+            }
+
+            if (new Set(usedLabels).size !== usedLabels.length) {
+                showFeedback(false, "Hata: Bir etiketi birden fazla kabloya veremezsiniz!");
+                return;
+            }
+
+            let result = { ok: false, msg: "Bilinmeyen hata." };
+            if (state.motorType === 4) result = verify4Wire(student);
+            else if (state.motorType === 6) result = verify6Wire(student);
+            else if (state.motorType === 8) result = verify8Wire(student);
+
+            showFeedback(result.ok, result.msg);
+            if(result.ok) animateMotor();
+        };
+
+        function showFeedback(ok, msg) {
+            const fb = document.getElementById("game-feedback");
+            fb.style.display = "block";
+            fb.style.background = ok ? "#27ae60" : "#c0392b";
+            fb.innerText = msg;
+            fb.style.color = "white";
+        }
+
+        function animateMotor() {
+            const motor = document.getElementById("motor-visual");
+            let angle = 0;
+            const itv = setInterval(() => {
+                angle += 10;
+                motor.style.transform = `rotate(${angle}deg)`;
+            }, 50);
+            setTimeout(() => clearInterval(itv), 2000);
+        }
+
+        window.initSim = function() {
+            const mission = missions[Math.floor(Math.random() * missions.length)];
+            state.motorType = mission.type;
+            state.model = generateMotor(mission.type);
+            state.selected = [];
+            
+            document.getElementById("mission-text").innerText = mission.text;
+            document.getElementById("hint-box").innerText = mission.hint;
+            document.getElementById("motor-type-label").innerText = mission.type + " Kablo";
+            document.getElementById("game-feedback").style.display = "none";
+            document.getElementById("ohm-val").innerText = "---";
+
+            const grid = document.getElementById("wire-grid");
+            grid.innerHTML = "";
+            grid.style.gridTemplateColumns = `repeat(${state.motorType === 6 ? 3 : 4}, 1fr)`;
+            
+            const opts = ["?", ...(["A+", "A-", "B+", "B-", "Ac", "Bc", "A1+", "A1-", "A2+", "A2-", "B1+", "B1-", "B2+", "B2-"].filter(l => {
+                if(state.motorType === 4) return l.length === 2 && !l.includes("c");
+                if(state.motorType === 6) return l.length === 2;
+                return l.length === 3;
+            }))].sort();
+
+            for(let i=0; i<state.motorType; i++) {
+                const div = document.createElement("div");
+                div.className = "wire-unit";
+                div.style.cssText = "background:#fff; padding:10px; border-radius:8px; text-align:center; box-shadow:0 2px 4px rgba(0,0,0,0.1);";
+                div.innerHTML = `
+                    <div style="font-size:12px; margin-bottom:5px;">Kablo ${i+1}</div>
+                    <div id="w-${i}" onclick="selectWire(${i})" style="width:20px; height:40px; background:#95a5a6; margin:0 auto 10px; cursor:pointer; border-radius:3px;"></div>
+                    <select id="sel-${i}" style="width:100%; font-size:12px;">${opts.map(o => `<option value="${o}">${o}</option>`).join("")}</select>
+                `;
+                grid.appendChild(div);
+            }
+        };
+
+        initSim();
+    })();
+</script>
+</body>
+</html>
