@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>2WD Diferansiyel Sürüş Simülatörü</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      padding: 20px;
+      font-family: Arial, Helvetica, sans-serif;
+      background: #f4f7fb;
+      color: #1f2d3d;
+    }
+
+    .app {
+      max-width: 1250px;
+      margin: 0 auto;
+      background: #ffffff;
+      border: 2px solid #2c3e50;
+      border-radius: 14px;
+      padding: 20px;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.08);
+    }
+
+    h2 {
+      margin-top: 0;
+      text-align: center;
+      color: #2c3e50;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 380px 1fr;
+      gap: 20px;
+    }
+
+    .panel {
+      background: #f9fbfd;
+      border: 1px solid #d6dee6;
+      border-radius: 12px;
+      padding: 16px;
+    }
+
+    .panel h3 {
+      margin-top: 0;
+      font-size: 18px;
+      color: #2c3e50;
+    }
+
+    .field {
+      margin-bottom: 14px;
+    }
+
+    .field label {
+      display: block;
+      font-weight: bold;
+      margin-bottom: 6px;
+    }
+
+    .field input {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #bcc8d4;
+      border-radius: 8px;
+      font-size: 15px;
+    }
+
+    .btn-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin-top: 10px;
+    }
+
+    button {
+      border: none;
+      border-radius: 8px;
+      padding: 12px;
+      font-size: 15px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    #startBtn { background: #27ae60; color: white; }
+    #stopBtn  { background: #c0392b; color: white; }
+    #resetBtn { background: #34495e; color: white; }
+
+    .status-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .stat-card {
+      background: white;
+      border: 1px solid #d6dee6;
+      border-radius: 10px;
+      padding: 10px;
+      min-height: 74px;
+    }
+
+    .stat-card .label {
+      font-size: 12px;
+      color: #607080;
+      margin-bottom: 4px;
+    }
+
+    .stat-card .value {
+      font-size: 20px;
+      font-weight: bold;
+      color: #1f2d3d;
+    }
+
+    .formula-box {
+      background: #101820;
+      color: #d7faff;
+      border-radius: 12px;
+      padding: 14px;
+      font-family: Consolas, monospace;
+      line-height: 1.7;
+      overflow-x: auto;
+    }
+
+    .hint-box {
+      margin-top: 12px;
+      background: #fff8e8;
+      border-left: 5px solid #f39c12;
+      padding: 12px;
+      border-radius: 8px;
+      color: #5d4a1f;
+      line-height: 1.5;
+    }
+
+    .canvas-wrap {
+      background: #ffffff;
+      border: 1px solid #d6dee6;
+      border-radius: 12px;
+      padding: 12px;
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: auto;
+      background: #fcfdff;
+      border: 1px solid #d6dee6;
+      border-radius: 10px;
+    }
+
+    .legend {
+      margin-top: 10px;
+      display: flex;
+      gap: 14px;
+      flex-wrap: wrap;
+      font-size: 14px;
+      color: #465665;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .line-box {
+      width: 24px;
+      height: 4px;
+      border-radius: 2px;
+    }
+
+    .footer-note {
+      margin-top: 12px;
+      font-size: 13px;
+      color: #5f6f7f;
+      line-height: 1.5;
+    }
+
+    @media (max-width: 980px) {
+      .layout {
+        grid-template-columns: 1fr;
+      }
+
+      .btn-row {
+        grid-template-columns: 1fr;
+      }
+
+      .status-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <h2>2WD Diferansiyel Sürüş Kinematiği Simülatörü</h2>
+
+    <div class="layout">
+      <div class="panel">
+        <h3>Giriş Parametreleri</h3>
+
+        <div class="field">
+          <label for="rpmLeft">Sol Teker RPM</label>
+          <input id="rpmLeft" type="number" step="0.1" value="30">
+        </div>
+
+        <div class="field">
+          <label for="rpmRight">Sağ Teker RPM</label>
+          <input id="rpmRight" type="number" step="0.1" value="60">
+        </div>
+
+        <div class="field">
+          <label for="wheelDiameter">Tekerlek Çapı (m)</label>
+          <input id="wheelDiameter" type="number" step="0.001" value="0.10">
+        </div>
+
+        <div class="field">
+          <label for="wheelBase">Tekerlekler Arası Mesafe, L (m)</label>
+          <input id="wheelBase" type="number" step="0.001" value="0.30">
+        </div>
+
+        <div class="field">
+          <label for="simSpeed">Simülasyon Hız Çarpanı</label>
+          <input id="simSpeed" type="number" step="0.1" value="1.0">
+        </div>
+
+        <div class="btn-row">
+          <button id="startBtn">BAŞLAT</button>
+          <button id="stopBtn">DURDUR</button>
+          <button id="resetBtn">SIFIRLA</button>
+        </div>
+
+        <div class="hint-box">
+          Bu modelde gövde eksen takımında yanal hız <strong>vy = 0</strong> kabul edilir. Robot yanal kaymaz. Ancak dünya koordinat sisteminde <strong>ẏ</strong> sıfır olmayabilir.
+        </div>
+
+        <h3 style="margin-top:20px;">Anlık Büyüklükler</h3>
+        <div class="status-grid">
+          <div class="stat-card">
+            <div class="label">Sol teker doğrusal hızı, Vl</div>
+            <div class="value" id="vlVal">0.000 m/s</div>
+          </div>
+          <div class="stat-card">
+            <div class="label">Sağ teker doğrusal hızı, Vr</div>
+            <div class="value" id="vrVal">0.000 m/s</div>
+          </div>
+          <div class="stat-card">
+            <div class="label">Gövde ileri hızı, Vx</div>
+            <div class="value" id="vxVal">0.000 m/s</div>
+          </div>
+          <div class="stat-card">
+            <div class="label">Gövde yanal hızı, Vy</div>
+            <div class="value" id="vyVal">0.000 m/s</div>
+          </div>
+          <div class="stat-card">
+            <div class="label">Açısal hız, θ̇</div>
+            <div class="value" id="thetaDotVal">0.000 rad/s</div>
+          </div>
+          <div class="stat-card">
+            <div class="label">Anlık yönelim, θ</div>
+            <div class="value" id="thetaVal">0.000 rad</div>
+          </div>
+          <div class="stat-card">
+            <div class="label">x konumu</div>
+            <div class="value" id="xVal">0.000 m</div>
+          </div>
+          <div class="stat-card">
+            <div class="label">y konumu</div>
+            <div class="value" id="yVal">0.000 m</div>
+          </div>
+        </div>
+
+        <h3 style="margin-top:20px;">Kinematik Formüller</h3>
+        <div class="formula-box">
+          r = D / 2
+          <br>Vl = 2πr · RPM<sub>sol</sub> / 60
+          <br>Vr = 2πr · RPM<sub>sağ</sub> / 60
+          <br>Vx = (Vr + Vl) / 2
+          <br>Vy = 0 &nbsp;&nbsp;&nbsp; (gövde eksen takımında)
+          <br>θ̇ = (Vr - Vl) / L
+          <br>ẋ = Vx cos(θ)
+          <br>ẏ = Vx sin(θ)
+          <br>θ(t+Δt) = θ(t) + θ̇Δt
+        </div>
+      </div>
+
+      <div class="panel">
+        <h3>Yörünge ve Robot Hareketi</h3>
+        <div class="canvas-wrap">
+          <canvas id="simCanvas" width="820" height="620"></canvas>
+          <div class="legend">
+            <div class="legend-item">
+              <div class="line-box" style="background:#2980b9;"></div>
+              <span>Robot yörüngesi</span>
+            </div>
+            <div class="legend-item">
+              <div class="line-box" style="background:#e74c3c;"></div>
+              <span>Robot gövdesi yönü</span>
+            </div>
+            <div class="legend-item">
+              <div class="line-box" style="background:#27ae60;"></div>
+              <span>Dünya koordinat eksenleri</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="footer-note">
+          Çizim metriği birebir fiziksel ölçek değildir. Görselleştirme için uygun bir ekran ölçeği kullanılır. Ama hesaplar girilen metrik değerlere göre yapılır.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      const canvas = document.getElementById("simCanvas");
+      const ctx = canvas.getContext("2d");
+
+      const inputs = {
+        rpmLeft: document.getElementById("rpmLeft"),
+        rpmRight: document.getElementById("rpmRight"),
+        wheelDiameter: document.getElementById("wheelDiameter"),
+        wheelBase: document.getElementById("wheelBase"),
+        simSpeed: document.getElementById("simSpeed")
+      };
+
+      const outputs = {
+        vlVal: document.getElementById("vlVal"),
+        vrVal: document.getElementById("vrVal"),
+        vxVal: document.getElementById("vxVal"),
+        vyVal: document.getElementById("vyVal"),
+        thetaDotVal: document.getElementById("thetaDotVal"),
+        thetaVal: document.getElementById("thetaVal"),
+        xVal: document.getElementById("xVal"),
+        yVal: document.getElementById("yVal")
+      };
+
+      const buttons = {
+        start: document.getElementById("startBtn"),
+        stop: document.getElementById("stopBtn"),
+        reset: document.getElementById("resetBtn")
+      };
+
+      const state = {
+        running: false,
+        x: 0,
+        y: 0,
+        theta: 0,
+        vx: 0,
+        vy: 0,
+        thetaDot: 0,
+        vl: 0,
+        vr: 0,
+        path: [],
+        lastTime: null
+      };
+
+      const view = {
+        scale: 120,
+        originX: canvas.width / 2,
+        originY: canvas.height / 2
+      };
+
+      function readNumber(el, fallback) {
+        const v = parseFloat(el.value);
+        return Number.isFinite(v) ? v : fallback;
+      }
+
+      function computeKinematics() {
+        const rpmL = readNumber(inputs.rpmLeft, 0);
+        const rpmR = readNumber(inputs.rpmRight, 0);
+        const D = Math.max(readNumber(inputs.wheelDiameter, 0.1), 0.0001);
+        const L = Math.max(readNumber(inputs.wheelBase, 0.3), 0.0001);
+
+        const r = D / 2;
+
+        const vl = 2 * Math.PI * r * rpmL / 60;
+        const vr = 2 * Math.PI * r * rpmR / 60;
+
+        const vx = (vr + vl) / 2;
+        const vy = 0;
+        const thetaDot = (vr - vl) / L;
+
+        state.vl = vl;
+        state.vr = vr;
+        state.vx = vx;
+        state.vy = vy;
+        state.thetaDot = thetaDot;
+      }
+
+      function updateOutputs() {
+        outputs.vlVal.textContent = state.vl.toFixed(3) + " m/s";
+        outputs.vrVal.textContent = state.vr.toFixed(3) + " m/s";
+        outputs.vxVal.textContent = state.vx.toFixed(3) + " m/s";
+        outputs.vyVal.textContent = state.vy.toFixed(3) + " m/s";
+        outputs.thetaDotVal.textContent = state.thetaDot.toFixed(3) + " rad/s";
+        outputs.thetaVal.textContent = state.theta.toFixed(3) + " rad";
+        outputs.xVal.textContent = state.x.toFixed(3) + " m";
+        outputs.yVal.textContent = state.y.toFixed(3) + " m";
+      }
+
+      function worldToCanvas(x, y) {
+        return {
+          x: view.originX + x * view.scale,
+          y: view.originY - y * view.scale
+        };
+      }
+
+      function drawGrid() {
+        ctx.save();
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        ctx.fillStyle = "#fcfdff";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        ctx.strokeStyle = "#e5ebf1";
+        ctx.lineWidth = 1;
+
+        const step = 40;
+        for (let x = 0; x <= canvas.width; x += step) {
+          ctx.beginPath();
+          ctx.moveTo(x, 0);
+          ctx.lineTo(x, canvas.height);
+          ctx.stroke();
+        }
+        for (let y = 0; y <= canvas.height; y += step) {
+          ctx.beginPath();
+          ctx.moveTo(0, y);
+          ctx.lineTo(canvas.width, y);
+          ctx.stroke();
+        }
+
+        ctx.strokeStyle = "#27ae60";
+        ctx.lineWidth = 2;
+
+        ctx.beginPath();
+        ctx.moveTo(0, view.originY);
+        ctx.lineTo(canvas.width, view.originY);
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(view.originX, 0);
+        ctx.lineTo(view.originX, canvas.height);
+        ctx.stroke();
+
+        ctx.fillStyle = "#1f2d3d";
+        ctx.font = "14px Arial";
+        ctx.fillText("X", canvas.width - 18, view.originY - 8);
+        ctx.fillText("Y", view.originX + 8, 18);
+
+        ctx.restore();
+      }
+
+      function drawPath() {
+        if (state.path.length < 2) return;
+
+        ctx.save();
+        ctx.strokeStyle = "#2980b9";
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+
+        const p0 = worldToCanvas(state.path[0].x, state.path[0].y);
+        ctx.moveTo(p0.x, p0.y);
+
+        for (let i = 1; i < state.path.length; i++) {
+          const p = worldToCanvas(state.path[i].x, state.path[i].y);
+          ctx.lineTo(p.x, p.y);
+        }
+
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      function drawRobot() {
+        const p = worldToCanvas(state.x, state.y);
+
+        const bodyLength = 42;
+        const bodyWidth = 26;
+        const headingX = Math.cos(state.theta);
+        const headingY = -Math.sin(state.theta);
+
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate(-state.theta);
+
+        ctx.fillStyle = "#34495e";
+        ctx.strokeStyle = "#22313f";
+        ctx.lineWidth = 2;
+        ctx.fillRect(-bodyLength / 2, -bodyWidth / 2, bodyLength, bodyWidth);
+        ctx.strokeRect(-bodyLength / 2, -bodyWidth / 2, bodyLength, bodyWidth);
+
+        ctx.fillStyle = "#7f8c8d";
+        ctx.fillRect(-bodyLength / 2 + 4, -bodyWidth / 2 - 6, bodyLength - 8, 5);
+        ctx.fillRect(-bodyLength / 2 + 4, bodyWidth / 2 + 1, bodyLength - 8, 5);
+
+        ctx.strokeStyle = "#e74c3c";
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.lineTo(bodyLength / 2 + 18, 0);
+        ctx.stroke();
+
+        ctx.restore();
+
+        ctx.save();
+        ctx.fillStyle = "#111";
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 4, 0, 2 * Math.PI);
+        ctx.fill();
+        ctx.restore();
+      }
+
+      function drawInfoOverlay() {
+        ctx.save();
+        ctx.fillStyle = "rgba(255,255,255,0.92)";
+        ctx.fillRect(14, 14, 280, 108);
+        ctx.strokeStyle = "#d6dee6";
+        ctx.strokeRect(14, 14, 280, 108);
+
+        ctx.fillStyle = "#1f2d3d";
+        ctx.font = "14px Arial";
+        ctx.fillText("x = " + state.x.toFixed(3) + " m", 26, 38);
+        ctx.fillText("y = " + state.y.toFixed(3) + " m", 26, 60);
+        ctx.fillText("θ = " + state.theta.toFixed(3) + " rad", 26, 82);
+        ctx.fillText("Vx = " + state.vx.toFixed(3) + " m/s", 150, 38);
+        ctx.fillText("Vy = " + state.vy.toFixed(3) + " m/s", 150, 60);
+        ctx.fillText("θ̇ = " + state.thetaDot.toFixed(3) + " rad/s", 150, 82);
+        ctx.restore();
+      }
+
+      function render() {
+        drawGrid();
+        drawPath();
+        drawRobot();
+        drawInfoOverlay();
+      }
+
+      function resetSimulation() {
+        state.running = false;
+        state.x = 0;
+        state.y = 0;
+        state.theta = 0;
+        state.vx = 0;
+        state.vy = 0;
+        state.thetaDot = 0;
+        state.vl = 0;
+        state.vr = 0;
+        state.path = [{ x: 0, y: 0 }];
+        state.lastTime = null;
+        computeKinematics();
+        updateOutputs();
+        render();
+      }
+
+      function step(timestamp) {
+        if (!state.running) return;
+
+        if (state.lastTime == null) {
+          state.lastTime = timestamp;
+        }
+
+        const dtRaw = (timestamp - state.lastTime) / 1000;
+        state.lastTime = timestamp;
+
+        const simSpeed = Math.max(readNumber(inputs.simSpeed, 1), 0);
+        const dt = dtRaw * simSpeed;
+
+        computeKinematics();
+
+        const xDot = state.vx * Math.cos(state.theta);
+        const yDot = state.vx * Math.sin(state.theta);
+
+        state.x += xDot * dt;
+        state.y += yDot * dt;
+        state.theta += state.thetaDot * dt;
+
+        state.path.push({ x: state.x, y: state.y });
+
+        if (state.path.length > 4000) {
+          state.path.shift();
+        }
+
+        updateOutputs();
+        render();
+
+        requestAnimationFrame(step);
+      }
+
+      buttons.start.addEventListener("click", function () {
+        computeKinematics();
+        updateOutputs();
+        if (!state.running) {
+          state.running = true;
+          state.lastTime = null;
+          requestAnimationFrame(step);
+        }
+      });
+
+      buttons.stop.addEventListener("click", function () {
+        state.running = false;
+      });
+
+      buttons.reset.addEventListener("click", function () {
+        resetSimulation();
+      });
+
+      [
+        inputs.rpmLeft,
+        inputs.rpmRight,
+        inputs.wheelDiameter,
+        inputs.wheelBase,
+        inputs.simSpeed
+      ].forEach(el => {
+        el.addEventListener("input", function () {
+          computeKinematics();
+          updateOutputs();
+          render();
+        });
+      });
+
+      resetSimulation();
+    })();
+  </script>
+</body>
+</html>
