@@ -1,0 +1,958 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Step Motor Bağlantı Laboratuvarı</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            padding: 20px;
+            background: #ffffff;
+            font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        #stepper-game {
+            background: #f0f4f7;
+            border: 2px solid #2c3e50;
+            padding: 25px;
+            border-radius: 15px;
+            max-width: 980px;
+            margin: auto;
+            color: #2c3e50;
+        }
+
+        #stepper-game h2 {
+            text-align: center;
+            color: #2c3e50;
+            margin-top: 0;
+        }
+
+        #scenario-box {
+            background: #fff;
+            padding: 15px;
+            border-left: 5px solid #e67e22;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+
+        .top-panel {
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            gap: 20px;
+            flex-wrap: wrap;
+            margin-bottom: 25px;
+        }
+
+        #multimeter {
+            background: #222;
+            color: #00ff00;
+            padding: 20px;
+            border: 5px solid #444;
+            border-radius: 10px;
+            font-family: "Courier New", monospace;
+            font-size: 28px;
+            width: 210px;
+            text-align: center;
+            box-shadow: inset 0 0 10px #000;
+        }
+
+        #multimeter small {
+            font-size: 12px;
+            color: #888;
+            display: block;
+        }
+
+        #motor-visual {
+            width: 110px;
+            height: 110px;
+            border-radius: 50%;
+            border: 8px solid #95a5a6;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #bdc3c7;
+            transition: transform 0.1s linear;
+        }
+
+        #motor-visual-inner {
+            width: 80%;
+            height: 12px;
+            background: #34495e;
+            border-radius: 5px;
+        }
+
+        .info-box {
+            background: #fff;
+            padding: 15px;
+            border-radius: 10px;
+            min-width: 280px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.08);
+        }
+
+        .info-box div + div {
+            margin-top: 8px;
+        }
+
+        #wire-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+            margin-bottom: 25px;
+        }
+
+        .wire-card {
+            background: #fff;
+            padding: 12px;
+            border-radius: 10px;
+            text-align: center;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .wire-title {
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #2c3e50;
+        }
+
+        .wire-pin {
+            width: 22px;
+            height: 42px;
+            background: #95a5a6;
+            margin: 0 auto 10px;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: 0.2s;
+            border: 2px solid transparent;
+        }
+
+        .wire-select {
+            width: 100%;
+            padding: 6px;
+            border-radius: 6px;
+        }
+
+        .button-panel {
+            text-align: center;
+            border-top: 2px solid #dcdde1;
+            padding-top: 20px;
+        }
+
+        .app-btn {
+            border: none;
+            padding: 12px 25px;
+            font-size: 16px;
+            cursor: pointer;
+            border-radius: 8px;
+            transition: 0.3s;
+            color: white;
+        }
+
+        #test-btn {
+            background: #27ae60;
+            font-weight: bold;
+        }
+
+        #reset-btn {
+            background: #34495e;
+            margin-left: 10px;
+        }
+
+        #game-feedback {
+            margin-top: 20px;
+            padding: 15px;
+            text-align: center;
+            border-radius: 8px;
+            display: none;
+            color: #fff;
+        }
+
+        @media (max-width: 768px) {
+            body {
+                padding: 10px;
+            }
+
+            #stepper-game {
+                padding: 18px;
+            }
+
+            #wire-grid {
+                grid-template-columns: repeat(2, 1fr) !important;
+            }
+
+            .button-panel {
+                display: flex;
+                flex-direction: column;
+                gap: 10px;
+                align-items: stretch;
+            }
+
+            #reset-btn {
+                margin-left: 0;
+            }
+
+            .app-btn {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="stepper-game">
+        <h2>Step Motor Bağlantı Laboratuvarı</h2>
+
+        <div id="scenario-box">
+            <strong>GÖREV:</strong> <span id="mission-text">Yükleniyor...</span>
+        </div>
+
+        <div class="top-panel">
+            <div id="multimeter">
+                <small>RESISTANCE</small>
+                <span id="ohm-val">---</span> <small>Ω</small>
+            </div>
+
+            <div id="motor-visual">
+                <div id="motor-visual-inner"></div>
+            </div>
+
+            <div class="info-box">
+                <div><strong>Motor Tipi:</strong> <span id="motor-type-label">-</span></div>
+                <div><strong>Seçilen Uçlar:</strong> <span id="selected-info">-</span></div>
+                <div><strong>İpucu:</strong> <span id="hint-box">Aynı sargı üzerindeki uçlarda direnç görülür.</span></div>
+            </div>
+        </div>
+
+        <div id="wire-grid"></div>
+
+        <div class="button-panel">
+            <button id="test-btn" class="app-btn">BAĞLANTIYI TEST ET</button>
+            <button id="reset-btn" class="app-btn">YENİ MOTOR / RESET</button>
+        </div>
+
+        <div id="game-feedback"></div>
+    </div>
+
+    <script>
+        (function () {
+            let state = {
+                selected: [],
+                motorType: 4,
+                mission: null,
+                model: null,
+                animInterval: null
+            };
+
+            const missions = [
+                {
+                    id: "basic4",
+                    type: 4,
+                    text: "4 kablolu motorda iki fazı bulun ve uçları A+, A-, B+, B- olarak etiketleyin.",
+                    hint: "Aynı fazın iki ucu arasında direnç vardır. Diğer kombinasyonlar açık devredir."
+                },
+                {
+                    id: "basic6",
+                    type: 6,
+                    text: "6 kablolu motorda iki fazı ve orta uçları bulun. Uçları A+, Ac, A-, B+, Bc, B- olarak etiketleyin.",
+                    hint: "Uç-orta arasında yarım direnç, uç-uç arasında tam direnç görülür."
+                },
+                {
+                    id: "basic8",
+                    type: 8,
+                    text: "8 kablolu motorda yarım sargıları bulun. Uçları A1+, A1-, A2+, A2-, B1+, B1-, B2+, B2- olarak etiketleyin. Bu aşama seri/paralel bağlantıdan önce yarım sargı keşif aşamasıdır.",
+                    hint: "Sadece aynı yarım sargının iki ucu arasında düşük direnç görülür."
+                }
+            ];
+
+            function shuffle(arr) {
+                const a = [...arr];
+                for (let i = a.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [a[i], a[j]] = [a[j], a[i]];
+                }
+                return a;
+            }
+
+            function sortNums(arr) {
+                return [...arr].sort((a, b) => a - b);
+            }
+
+            function sameArray(a, b) {
+                if (a.length !== b.length) return false;
+                for (let i = 0; i < a.length; i++) {
+                    if (a[i] !== b[i]) return false;
+                }
+                return true;
+            }
+
+            function sameSetOfPairs(studentPairs, truePairs) {
+                const s = studentPairs.map(p => sortNums(p).join("-")).sort();
+                const t = truePairs.map(p => sortNums(p).join("-")).sort();
+                return sameArray(s, t);
+            }
+
+            function normalizeLabel(value) {
+                return String(value || "?").trim();
+            }
+
+            function invertLabelsByWire(studentObj, wireCount) {
+                const byLabel = {};
+                for (let i = 0; i < wireCount; i++) {
+                    byLabel[studentObj[i]] = i;
+                }
+                return byLabel;
+            }
+
+            function generateMotor(type) {
+                const ids = shuffle([...Array(type).keys()]);
+
+                if (type === 4) {
+                    return {
+                        type: 4,
+                        coils: {
+                            A: [ids[0], ids[1]],
+                            B: [ids[2], ids[3]]
+                        },
+                        labels: {
+                            [ids[0]]: "A+",
+                            [ids[1]]: "A-",
+                            [ids[2]]: "B+",
+                            [ids[3]]: "B-"
+                        }
+                    };
+                }
+
+                if (type === 6) {
+                    return {
+                        type: 6,
+                        coils: {
+                            A: [ids[0], ids[1], ids[2]],
+                            B: [ids[3], ids[4], ids[5]]
+                        },
+                        labels: {
+                            [ids[0]]: "A+",
+                            [ids[1]]: "Ac",
+                            [ids[2]]: "A-",
+                            [ids[3]]: "B+",
+                            [ids[4]]: "Bc",
+                            [ids[5]]: "B-"
+                        }
+                    };
+                }
+
+                if (type === 8) {
+                    return {
+                        type: 8,
+                        halfCoils: {
+                            A1: [ids[0], ids[1]],
+                            A2: [ids[2], ids[3]],
+                            B1: [ids[4], ids[5]],
+                            B2: [ids[6], ids[7]]
+                        },
+                        labels: {
+                            [ids[0]]: "A1+",
+                            [ids[1]]: "A1-",
+                            [ids[2]]: "A2+",
+                            [ids[3]]: "A2-",
+                            [ids[4]]: "B1+",
+                            [ids[5]]: "B1-",
+                            [ids[6]]: "B2+",
+                            [ids[7]]: "B2-"
+                        }
+                    };
+                }
+
+                return null;
+            }
+
+            function getOptions(type) {
+                if (type === 4) return ["?", "A+", "A-", "B+", "B-"];
+                if (type === 6) return ["?", "A+", "Ac", "A-", "B+", "Bc", "B-"];
+                if (type === 8) return ["?", "A1+", "A1-", "A2+", "A2-", "B1+", "B1-", "B2+", "B2-"];
+                return ["?"];
+            }
+
+            function measureResistance(w1, w2) {
+                const m = state.model;
+                if (w1 === w2) return "---";
+
+                if (m.type === 4) {
+                    for (const phase of Object.values(m.coils)) {
+                        if (phase.includes(w1) && phase.includes(w2)) {
+                            return "4.5";
+                        }
+                    }
+                    return "∞";
+                }
+
+                if (m.type === 6) {
+                    for (const phase of Object.values(m.coils)) {
+                        if (phase.includes(w1) && phase.includes(w2)) {
+                            const [end1, center, end2] = phase;
+                            const pair = sortNums([w1, w2]);
+                            const endCenter1 = sortNums([end1, center]);
+                            const endCenter2 = sortNums([center, end2]);
+                            const endEnd = sortNums([end1, end2]);
+
+                            if (sameArray(pair, endCenter1)) return "2.2";
+                            if (sameArray(pair, endCenter2)) return "2.2";
+                            if (sameArray(pair, endEnd)) return "4.4";
+                        }
+                    }
+                    return "∞";
+                }
+
+                if (m.type === 8) {
+                    for (const half of Object.values(m.halfCoils)) {
+                        if (half.includes(w1) && half.includes(w2)) {
+                            return "2.1";
+                        }
+                    }
+                    return "∞";
+                }
+
+                return "∞";
+            }
+
+            function buildWireGrid() {
+                const grid = document.getElementById("wire-grid");
+                grid.innerHTML = "";
+
+                const columns = state.motorType === 8 ? 4 : (state.motorType === 6 ? 3 : 4);
+                grid.style.gridTemplateColumns = `repeat(${columns}, 1fr)`;
+
+                const options = getOptions(state.motorType);
+
+                for (let i = 0; i < state.motorType; i++) {
+                    const card = document.createElement("div");
+                    card.className = "wire-card";
+
+                    const label = document.createElement("div");
+                    label.className = "wire-title";
+                    label.innerText = "Kablo " + (i + 1);
+
+                    const wire = document.createElement("div");
+                    wire.id = "w-" + i;
+                    wire.className = "wire-pin";
+                    wire.addEventListener("click", function () {
+                        selectWire(i);
+                    });
+
+                    const sel = document.createElement("select");
+                    sel.id = "sel-" + i;
+                    sel.className = "wire-select";
+                    sel.innerHTML = options.map(o => `<option value="${o}">${o}</option>`).join("");
+
+                    card.appendChild(label);
+                    card.appendChild(wire);
+                    card.appendChild(sel);
+                    grid.appendChild(card);
+                }
+            }
+
+            function selectWire(id) {
+                const wireEl = document.getElementById("w-" + id);
+
+                if (state.selected.includes(id)) {
+                    state.selected = state.selected.filter(x => x !== id);
+                    wireEl.style.background = "#95a5a6";
+                    wireEl.style.border = "2px solid transparent";
+                } else if (state.selected.length < 2) {
+                    state.selected.push(id);
+                    wireEl.style.background = "#e74c3c";
+                    wireEl.style.border = "2px solid #c0392b";
+                }
+
+                if (state.selected.length === 0) {
+                    document.getElementById("selected-info").innerText = "-";
+                } else if (state.selected.length === 1) {
+                    document.getElementById("selected-info").innerText = "Kablo " + (state.selected[0] + 1);
+                } else {
+                    document.getElementById("selected-info").innerText =
+                        "Kablo " + (state.selected[0] + 1) + " & Kablo " + (state.selected[1] + 1);
+                }
+
+                if (state.selected.length === 2) {
+                    const r = measureResistance(state.selected[0], state.selected[1]);
+                    document.getElementById("ohm-val").innerText = r;
+
+                    setTimeout(() => {
+                        state.selected.forEach(x => {
+                            const el = document.getElementById("w-" + x);
+                            el.style.background = "#95a5a6";
+                            el.style.border = "2px solid transparent";
+                        });
+                        state.selected = [];
+                        document.getElementById("selected-info").innerText = "-";
+                    }, 1000);
+                }
+            }
+
+            function readStudentLabels() {
+                const result = {};
+                for (let i = 0; i < state.motorType; i++) {
+                    result[i] = normalizeLabel(document.getElementById("sel-" + i).value);
+                }
+                return result;
+            }
+
+            function checkDuplicateSelections(student) {
+                const counts = {};
+                for (let i = 0; i < state.motorType; i++) {
+                    const v = student[i];
+                    if (v !== "?") counts[v] = (counts[v] || 0) + 1;
+                }
+                return Object.entries(counts)
+                    .filter(([k, v]) => v > 1)
+                    .map(([k]) => k);
+            }
+
+            function checkMissingLabels(student, requiredLabels) {
+                const used = new Set();
+                for (let i = 0; i < state.motorType; i++) {
+                    used.add(student[i]);
+                }
+                return requiredLabels.filter(label => !used.has(label));
+            }
+
+            function animateMotor(mode) {
+                const motor = document.getElementById("motor-visual");
+                if (state.animInterval) clearInterval(state.animInterval);
+
+                let angle = 0;
+                let steps = 0;
+
+                state.animInterval = setInterval(() => {
+                    if (mode === "run") {
+                        angle += 12;
+                    } else if (mode === "slow") {
+                        angle += 6;
+                    } else {
+                        angle += (steps % 2 === 0 ? 8 : -8);
+                    }
+
+                    motor.style.transform = `rotate(${angle}deg)`;
+                    steps++;
+
+                    if (steps > 60) {
+                        clearInterval(state.animInterval);
+                        state.animInterval = null;
+                        motor.style.transform = "rotate(0deg)";
+                    }
+                }, 50);
+            }
+
+            function showFeedback(ok, msg, colorOverride) {
+                const fb = document.getElementById("game-feedback");
+                fb.style.display = "block";
+                fb.style.background = colorOverride ? colorOverride : (ok ? "#27ae60" : "#c0392b");
+                fb.style.color = "#fff";
+                fb.innerText = msg;
+            }
+
+            function verify4WireDetailed(student) {
+                const required = ["A+", "A-", "B+", "B-"];
+                const missing = checkMissingLabels(student, required);
+                if (missing.length > 0) {
+                    return {
+                        ok: false,
+                        mode: "missing",
+                        message: "Tüm etiketler atanmalıdır: A+, A-, B+, B-"
+                    };
+                }
+
+                const map = invertLabelsByWire(student, state.motorType);
+
+                const trueA = state.model.coils.A;
+                const trueB = state.model.coils.B;
+
+                const studentAGroup = sortNums([map["A+"], map["A-"]]);
+                const studentBGroup = sortNums([map["B+"], map["B-"]]);
+                const trueAGroup = sortNums(trueA);
+                const trueBGroup = sortNums(trueB);
+
+                const directGrouping =
+                    sameArray(studentAGroup, trueAGroup) &&
+                    sameArray(studentBGroup, trueBGroup);
+
+                const swappedGrouping =
+                    sameArray(studentAGroup, trueBGroup) &&
+                    sameArray(studentBGroup, trueAGroup);
+
+                if (!directGrouping && !swappedGrouping) {
+                    return {
+                        ok: false,
+                        mode: "phase",
+                        message: "Faz grupları yanlış. 4 kablolu motorda iki doğru sargı çiftini bulmanız gerekir."
+                    };
+                }
+
+                let refA, refB;
+                if (directGrouping) {
+                    refA = trueA;
+                    refB = trueB;
+                } else {
+                    refA = trueB;
+                    refB = trueA;
+                }
+
+                const aCorrect = map["A+"] === refA[0] && map["A-"] === refA[1];
+                const aReversed = map["A+"] === refA[1] && map["A-"] === refA[0];
+
+                const bCorrect = map["B+"] === refB[0] && map["B-"] === refB[1];
+                const bReversed = map["B+"] === refB[1] && map["B-"] === refB[0];
+
+                if (aCorrect && bCorrect) {
+                    return {
+                        ok: true,
+                        mode: "perfect",
+                        message: directGrouping
+                            ? "Tebrikler. İki fazı ve kutup yönlerini doğru buldunuz."
+                            : "Tebrikler. Fazları doğru buldunuz. A ve B isimleri yer değiştirmiş olsa da bağlantı fiziksel olarak tutarlı."
+                    };
+                }
+
+                if (aReversed && bReversed) {
+                    return {
+                        ok: true,
+                        mode: "double_reversed",
+                        message: "İki faz da ters polaritede etiketlenmiş. Göreli ilişki korunduğu için sistem çalışabilir, ancak referans polarite ters kurulmuştur."
+                    };
+                }
+
+                if ((aReversed && bCorrect) || (aCorrect && bReversed)) {
+                    return {
+                        ok: false,
+                        mode: "single_reversed",
+                        message: "Tek bir fazın uç yönü ters seçilmiş. Bu durumda faz sırası bozulur ve motor genellikle titreşir."
+                    };
+                }
+
+                return {
+                    ok: false,
+                    mode: "unknown",
+                    message: "Bağlantıda kutup yönü hatası var."
+                };
+            }
+
+            function verify6WireDetailed(student) {
+                const required = ["A+", "Ac", "A-", "B+", "Bc", "B-"];
+                const missing = checkMissingLabels(student, required);
+                if (missing.length > 0) {
+                    return {
+                        ok: false,
+                        mode: "missing",
+                        message: "Tüm etiketler atanmalıdır: A+, Ac, A-, B+, Bc, B-"
+                    };
+                }
+
+                const map = invertLabelsByWire(student, state.motorType);
+
+                const trueA = state.model.coils.A;
+                const trueB = state.model.coils.B;
+
+                const studentAGroup = sortNums([map["A+"], map["Ac"], map["A-"]]);
+                const studentBGroup = sortNums([map["B+"], map["Bc"], map["B-"]]);
+                const trueAGroup = sortNums(trueA);
+                const trueBGroup = sortNums(trueB);
+
+                const directGrouping =
+                    sameArray(studentAGroup, trueAGroup) &&
+                    sameArray(studentBGroup, trueBGroup);
+
+                const swappedGrouping =
+                    sameArray(studentAGroup, trueBGroup) &&
+                    sameArray(studentBGroup, trueAGroup);
+
+                if (!directGrouping && !swappedGrouping) {
+                    return {
+                        ok: false,
+                        mode: "phase",
+                        message: "Faz grupları yanlış. Aynı faza ait üç kabloyu birlikte bulmanız gerekiyor."
+                    };
+                }
+
+                let refA, refB;
+                if (directGrouping) {
+                    refA = trueA;
+                    refB = trueB;
+                } else {
+                    refA = trueB;
+                    refB = trueA;
+                }
+
+                const centerCorrect =
+                    map["Ac"] === refA[1] &&
+                    map["Bc"] === refB[1];
+
+                if (!centerCorrect) {
+                    return {
+                        ok: false,
+                        mode: "center",
+                        message: "Orta uçlardan en az biri yanlış seçilmiş. Uç-orta arasında yarım, uç-uç arasında tam direnç görülmelidir."
+                    };
+                }
+
+                const aCorrect = map["A+"] === refA[0] && map["A-"] === refA[2];
+                const aReversed = map["A+"] === refA[2] && map["A-"] === refA[0];
+
+                const bCorrect = map["B+"] === refB[0] && map["B-"] === refB[2];
+                const bReversed = map["B+"] === refB[2] && map["B-"] === refB[0];
+
+                if (aCorrect && bCorrect) {
+                    return {
+                        ok: true,
+                        mode: "perfect",
+                        message: directGrouping
+                            ? "Tebrikler. Fazlar, orta uçlar ve kutup yönleri doğru."
+                            : "Tebrikler. Fazlar ve orta uçlar doğru. A ve B isimleri yer değiştirmiş olsa da fiziksel çözüm tutarlı."
+                    };
+                }
+
+                if (aReversed && bReversed) {
+                    return {
+                        ok: true,
+                        mode: "double_reversed",
+                        message: "Her iki fazın kutup yönü ters seçilmiş. Göreli ilişki korunduğu için sistem çalışabilir, ancak referans polarite ters kurulmuştur."
+                    };
+                }
+
+                if ((aReversed && bCorrect) || (aCorrect && bReversed)) {
+                    return {
+                        ok: false,
+                        mode: "single_reversed",
+                        message: "Tek bir fazın uç yönü ters seçilmiş. Bu durumda faz sırası bozulur ve motor genellikle titreşir."
+                    };
+                }
+
+                return {
+                    ok: false,
+                    mode: "polarity",
+                    message: "Uç yönlerinde hata var."
+                };
+            }
+
+            function verify8WireDetailed(student) {
+                const required = ["A1+", "A1-", "A2+", "A2-", "B1+", "B1-", "B2+", "B2-"];
+                const missing = checkMissingLabels(student, required);
+                if (missing.length > 0) {
+                    return {
+                        ok: false,
+                        mode: "missing",
+                        message: "Tüm etiketler atanmalıdır: A1+, A1-, A2+, A2-, B1+, B1-, B2+, B2-"
+                    };
+                }
+
+                const map = invertLabelsByWire(student, state.motorType);
+
+                const trueHalfPairs = [
+                    state.model.halfCoils.A1,
+                    state.model.halfCoils.A2,
+                    state.model.halfCoils.B1,
+                    state.model.halfCoils.B2
+                ];
+
+                const studentHalfPairs = [
+                    [map["A1+"], map["A1-"]],
+                    [map["A2+"], map["A2-"]],
+                    [map["B1+"], map["B1-"]],
+                    [map["B2+"], map["B2-"]]
+                ];
+
+                if (!sameSetOfPairs(studentHalfPairs, trueHalfPairs)) {
+                    return {
+                        ok: false,
+                        mode: "halfcoil",
+                        message: "Yarım sargı grupları yanlış. 8 kablolu motorda yalnızca aynı yarım sargının iki ucu arasında direnç görülür."
+                    };
+                }
+
+                const trueAPhase = sortNums([
+                    ...state.model.halfCoils.A1,
+                    ...state.model.halfCoils.A2
+                ]);
+                const trueBPhase = sortNums([
+                    ...state.model.halfCoils.B1,
+                    ...state.model.halfCoils.B2
+                ]);
+
+                const studentAPhase = sortNums([
+                    map["A1+"], map["A1-"], map["A2+"], map["A2-"]
+                ]);
+                const studentBPhase = sortNums([
+                    map["B1+"], map["B1-"], map["B2+"], map["B2-"]
+                ]);
+
+                const directPhaseGrouping =
+                    sameArray(studentAPhase, trueAPhase) &&
+                    sameArray(studentBPhase, trueBPhase);
+
+                const swappedPhaseGrouping =
+                    sameArray(studentAPhase, trueBPhase) &&
+                    sameArray(studentBPhase, trueAPhase);
+
+                if (!directPhaseGrouping && !swappedPhaseGrouping) {
+                    return {
+                        ok: false,
+                        mode: "phase",
+                        message: "Yarım sargı çiftleri bulunmuş olsa da faz gruplaması yanlış. Aynı faza ait iki yarım sargı birlikte düşünülmelidir."
+                    };
+                }
+
+                const candidates = [];
+                const baseByWire = state.model.labels;
+
+                function transform8(label, phaseSwap, swapAHalves, swapBHalves, reverseAll) {
+                    let out = label;
+
+                    if (phaseSwap) {
+                        if (out.startsWith("A")) out = "B" + out.slice(1);
+                        else if (out.startsWith("B")) out = "A" + out.slice(1);
+                    }
+
+                    if (swapAHalves) {
+                        if (out.startsWith("A1")) out = out.replace("A1", "A2");
+                        else if (out.startsWith("A2")) out = out.replace("A2", "A1");
+                    }
+
+                    if (swapBHalves) {
+                        if (out.startsWith("B1")) out = out.replace("B1", "B2");
+                        else if (out.startsWith("B2")) out = out.replace("B2", "B1");
+                    }
+
+                    if (reverseAll) {
+                        if (out.endsWith("+")) out = out.slice(0, -1) + "-";
+                        else if (out.endsWith("-")) out = out.slice(0, -1) + "+";
+                    }
+
+                    return out;
+                }
+
+                for (const phaseSwap of [false, true]) {
+                    for (const swapAHalves of [false, true]) {
+                        for (const swapBHalves of [false, true]) {
+                            for (const reverseAll of [false, true]) {
+                                const candidate = {};
+                                for (let i = 0; i < state.motorType; i++) {
+                                    candidate[i] = transform8(baseByWire[i], phaseSwap, swapAHalves, swapBHalves, reverseAll);
+                                }
+                                candidates.push({
+                                    map: candidate,
+                                    reverseAll: reverseAll
+                                });
+                            }
+                        }
+                    }
+                }
+
+                let matchedCandidate = null;
+                outer:
+                for (const c of candidates) {
+                    for (let i = 0; i < state.motorType; i++) {
+                        if (student[i] !== c.map[i]) {
+                            continue outer;
+                        }
+                    }
+                    matchedCandidate = c;
+                    break;
+                }
+
+                if (matchedCandidate) {
+                    if (matchedCandidate.reverseAll) {
+                        return {
+                            ok: true,
+                            mode: "double_reversed",
+                            message: "Yarım sargılar doğru bulunmuş. Tüm yarım sargıların kutup yönü ters seçilmiş olsa da göreli ilişki korunmuştur."
+                        };
+                    }
+                    return {
+                        ok: true,
+                        mode: "perfect",
+                        message: "Tebrikler. Yarım sargıları doğru buldunuz ve etiketleme fiziksel olarak tutarlı."
+                    };
+                }
+
+                return {
+                    ok: false,
+                    mode: "polarity",
+                    message: "Yarım sargı çiftleri büyük ölçüde doğru görünüyor ancak bazı uç yönleri hatalı. 8 kablolu motorda seri/paralel bağlama öncesi yarım sargı polaritesi önemlidir."
+                };
+            }
+
+            function verifySubmission() {
+                const student = readStudentLabels();
+                const duplicates = checkDuplicateSelections(student);
+
+                if (duplicates.length > 0) {
+                    showFeedback(false, "Aynı etiket birden fazla kabloya verilmiş: " + duplicates.join(", "));
+                    animateMotor("vibrate");
+                    return;
+                }
+
+                let result;
+
+                if (state.motorType === 4) {
+                    result = verify4WireDetailed(student);
+                } else if (state.motorType === 6) {
+                    result = verify6WireDetailed(student);
+                } else if (state.motorType === 8) {
+                    result = verify8WireDetailed(student);
+                } else {
+                    result = {
+                        ok: false,
+                        mode: "unknown",
+                        message: "Bilinmeyen motor tipi."
+                    };
+                }
+
+                if (result.ok) {
+                    if (result.mode === "double_reversed") {
+                        showFeedback(true, result.message, "#d35400");
+                        animateMotor("slow");
+                    } else {
+                        showFeedback(true, result.message);
+                        animateMotor("run");
+                    }
+                } else {
+                    showFeedback(false, result.message);
+                    animateMotor("vibrate");
+                }
+            }
+
+            function initSim() {
+                if (state.animInterval) {
+                    clearInterval(state.animInterval);
+                    state.animInterval = null;
+                }
+
+                document.getElementById("motor-visual").style.transform = "rotate(0deg)";
+                document.getElementById("ohm-val").innerText = "---";
+                document.getElementById("selected-info").innerText = "-";
+                document.getElementById("game-feedback").style.display = "none";
+
+                const mission = missions[Math.floor(Math.random() * missions.length)];
+                state.mission = mission;
+                state.motorType = mission.type;
+                state.model = generateMotor(mission.type);
+                state.selected = [];
+
+                document.getElementById("mission-text").innerText = mission.text;
+                document.getElementById("hint-box").innerText = mission.hint;
+                document.getElementById("motor-type-label").innerText = mission.type + " kablolu";
+
+                buildWireGrid();
+            }
+
+            document.addEventListener("DOMContentLoaded", function () {
+                document.getElementById("test-btn").addEventListener("click", verifySubmission);
+                document.getElementById("reset-btn").addEventListener("click", initSim);
+                initSim();
+            });
+        })();
+    </script>
+</body>
+</html>
