@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PID Analiz - Gelişmiş Scope Kontrolü</title>
+    <style>
+        body { margin: 0; padding: 10px; background-color: #e9ecef; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        #pid-zn-app { box-sizing: border-box; background:#f7f9fb; border:2px solid #2c3e50; padding:20px; border-radius:12px; max-width:1300px; margin:auto; box-shadow: 0 10px 30px rgba(0,0,0,0.1); }
+        .panel-container { display:grid; grid-template-columns: 320px 1fr; gap: 20px; }
+        @media (max-width: 1000px) { .panel-container { grid-template-columns: 1fr; } }
+        .status-bar { display:flex; justify-content:space-between; flex-wrap:wrap; background:#101820; color:#00ff88; padding:15px; border-radius:8px; border:3px solid #333; font-family: 'Courier New', monospace; margin-bottom:15px; box-shadow: inset 0 0 10px #000; }
+        .control-box { background:#fff; padding:15px; border:1px solid #d1d9e6; border-radius:8px; margin-bottom:12px; }
+        .control-box h4 { margin: 0 0 12px 0; color: #2c3e50; border-bottom: 1px solid #eee; padding-bottom: 5px; }
+        label { font-size:12px; font-weight: 600; display:block; margin-top:8px; }
+        input[type=range] { width: 100%; margin-top: 5px; cursor: pointer; accent-color: #2c3e50; }
+        .btn-group { display:grid; grid-template-columns: 1fr 1fr; gap:8px; margin-top:10px; }
+        button { cursor: pointer; transition: all 0.2s; border: none; border-radius: 4px; font-weight: bold; padding: 8px; }
+        button:active { transform: scale(0.95); }
+        .btn-reset-small { background: #eee; font-size: 10px; padding: 2px 5px; color: #666; }
+    </style>
+</head>
+<body>
+
+<div id="pid-zn-app">
+    <div class="status-bar">
+        <div>SETPOINT: <b id="real-sp">50.0</b></div>
+        <div>OUTPUT: <b id="real-pv">0.0</b></div>
+        <div>PWM: <b id="real-pwm">0</b>%</div>
+        <div>MOD: <span id="real-osc-type">-</span></div>
+    </div>
+
+    <div class="panel-container">
+        <div class="side-panel">
+            
+            <div class="control-box">
+                <h4>PID Parametreleri</h4>
+                <label>Hedef (SP): <b id="txt-sp">50</b></label>
+                <input type="range" id="input-sp" min="0" max="100" value="50">
+
+                <label style="color:#d35400;">Proportional (Kp): <b id="txt-kp">1.00</b></label>
+                <input type="range" id="input-kp" min="0" max="30" step="0.1" value="1.00">
+
+                <label style="color:#27ae60;">Integral (Ki): <b id="txt-ki">0.00</b></label>
+                <input type="range" id="input-ki" min="0" max="10" step="0.01" value="0.00">
+
+                <label style="color:#2980b9;">Derivative (Kd): <b id="txt-kd">0.00</b></label>
+                <input type="range" id="input-kd" min="0" max="10" step="0.01" value="0.00">
+
+                <div class="btn-group">
+                    <button id="btn-run" style="background:#16a085; color:white;">⏸ Duraklat</button>
+                    <button id="btn-reset" style="background:#7f8c8d; color:white;">↺ Sıfırla</button>
+                </div>
+                <button id="btn-zn-mode" style="width:100%; padding:10px; background:#8e44ad; color:white; margin-top:8px;">Z-N MODU: KAPALI</button>
+            </div>
+
+            <div class="control-box" style="background:#f1f4f9; border-left: 4px solid #2980b9;">
+                <h4>Scope (Görünüm)</h4>
+                
+                <div style="display:flex; justify-content:space-between;">
+                    <label>Dikey Ölçek (Zoom): <b id="txt-yzoom">1.0x</b></label>
+                </div>
+                <input type="range" id="input-y-zoom" min="0.5" max="15" step="0.1" value="1">
+
+                <div style="display:flex; justify-content:space-between; margin-top:10px;">
+                    <label>Dikey Konum (Y-Pos): <b id="txt-voffset">0</b></label>
+                    <button class="btn-reset-small" onclick="document.getElementById('input-voffset').value=0; window.sync();">Merkezle</button>
+                </div>
+                <input type="range" id="input-voffset" min="-100" max="100" value="0">
+
+                <div style="display:flex; justify-content:space-between; margin-top:10px;">
+                    <label>Zaman Kaydır (T-Pos): <b id="txt-hoffset">0s</b></label>
+                    <button class="btn-reset-small" onclick="document.getElementById('input-hoffset').value=0; window.sync();">Güne Dön</button>
+                </div>
+                <input type="range" id="input-hoffset" min="0" max="60" value="0">
+                
+                <label style="margin-top:10px;">Pencere Genişliği: <b id="txt-window">20s</b></label>
+                <input type="range" id="input-window" min="5" max="60" step="1" value="20">
+            </div>
+
+            <div id="zn-results" style="background:#e8f6ef; padding:12px; border:1px solid #9ad3ae; border-radius:8px; font-size:12px;">
+                <b>Otomatik Analiz:</b><br>
+                Ku: <span id="auto-ku">-</span> | Tu: <span id="auto-tu">-</span><br>
+                Öneri: <span id="auto-pid" style="color:#16a085; font-weight:bold;">-</span>
+            </div>
+        </div>
+
+        <div style="background:#000; border:4px solid #333; border-radius:8px; position:relative; overflow:hidden; box-shadow: inset 0 0 50px rgba(0,255,100,0.1);">
+            <canvas id="graphCanvas" width="850" height="550" style="width:100%; display:block;"></canvas>
+            <div style="position:absolute; right:10px; top:10px; color:#333; font-size:9px; font-family:monospace;">CH1: 10V/DIV | TIME: 2S/DIV</div>
+            <div style="position:absolute; left:60px; bottom:10px; color:#222; font-size:9px; font-family:monospace;">DİJİTAL ANALİZÖR v2.0</div>
+        </div>
+    </div>
+</div>
+
+<script>
+    (function() {
+        const canvas = document.getElementById("graphCanvas");
+        const ctx = canvas.getContext("2d");
+
+        const sim = {
+            dt: 0.02, time: 0, running: true, znMode: false,
+            sp: 50, kp: 1, ki: 0, kd: 0,
+            integral: 0, lastPv: 0, pv: 0, pvDot: 0,
+            Kplant: 1.15, wn: 1.6, zeta: 0.18, 
+            yZoom: 1.0, windowSec: 20, vOffset: 0, hOffset: 0,
+            history: [], peaks: [], prevSlope: 0, oscType: "-", lastTu: null
+        };
+
+        const el = {
+            sp: document.getElementById("input-sp"), kp: document.getElementById("input-kp"),
+            ki: document.getElementById("input-ki"), kd: document.getElementById("input-kd"),
+            yZoom: document.getElementById("input-y-zoom"), vOffset: document.getElementById("input-voffset"),
+            hOffset: document.getElementById("input-hoffset"), windowSec: document.getElementById("input-window"),
+            txtSp: document.getElementById("txt-sp"), txtKp: document.getElementById("txt-kp"),
+            txtKi: document.getElementById("txt-ki"), txtKd: document.getElementById("txt-kd"),
+            txtYZoom: document.getElementById("txt-yzoom"), txtVOffset: document.getElementById("txt-voffset"),
+            txtHOffset: document.getElementById("txt-hoffset"), txtWindow: document.getElementById("txt-window"),
+            realSp: document.getElementById("real-sp"), realPv: document.getElementById("real-pv"),
+            realPwm: document.getElementById("real-pwm"), realOscType: document.getElementById("real-osc-type"), 
+            btnRun: document.getElementById("btn-run"), btnZN: document.getElementById("btn-zn-mode"),
+            autoKu: document.getElementById("auto-ku"), autoTu: document.getElementById("auto-tu"), autoPid: document.getElementById("auto-pid")
+        };
+
+        window.sync = function() {
+            sim.sp = parseFloat(el.sp.value);
+            sim.kp = parseFloat(el.kp.value);
+            sim.ki = sim.znMode ? 0 : parseFloat(el.ki.value);
+            sim.kd = sim.znMode ? 0 : parseFloat(el.kd.value);
+            sim.yZoom = parseFloat(el.yZoom.value);
+            sim.vOffset = parseFloat(el.vOffset.value);
+            sim.hOffset = parseFloat(el.hOffset.value);
+            sim.windowSec = parseFloat(el.windowSec.value);
+            
+            el.txtSp.textContent = sim.sp;
+            el.txtKp.textContent = sim.kp.toFixed(1);
+            el.txtKi.textContent = sim.ki.toFixed(2);
+            el.txtKd.textContent = sim.kd.toFixed(2);
+            el.txtYZoom.textContent = sim.yZoom.toFixed(1) + "x";
+            el.txtVOffset.textContent = sim.vOffset;
+            el.txtHOffset.textContent = sim.hOffset + "s";
+            el.txtWindow.textContent = sim.windowSec + "s";
+            el.realSp.textContent = sim.sp.toFixed(1);
+        }
+
+        function toY(val, centerY, pxPerUnit) {
+            // Referans değerimiz 50. vOffset eklenerek ekran kaydırılır.
+            return centerY - (val - (50 + sim.vOffset)) * pxPerUnit;
+        }
+
+        function draw() {
+            const w = canvas.width; const h = canvas.height;
+            ctx.fillStyle = "#000"; ctx.fillRect(0, 0, w, h);
+
+            const leftPad = 55; const rightPad = 20; const topPad = 40; const bottomPad = 40;
+            const plotW = w - leftPad - rightPad; const plotH = h - topPad - bottomPad;
+            const centerY = topPad + plotH / 2;
+
+            // Ölçekleme: Zoom
+            const pxPerUnit = (plotH / 100) * sim.yZoom;
+
+            // GRID (Arka Plan Çizgileri)
+            ctx.strokeStyle = "#0e1a0e"; ctx.lineWidth = 1;
+            ctx.fillStyle = "#005522"; ctx.font = "10px 'Courier New'";
+            ctx.textAlign = "right";
+
+            for (let v = -300; v <= 400; v += 10) {
+                let y = toY(v, centerY, pxPerUnit);
+                if (y < 0 || y > h) continue;
+                ctx.beginPath(); ctx.moveTo(leftPad, y); ctx.lineTo(w - rightPad, y); ctx.stroke();
+                if (v % 20 === 0) ctx.fillText(v, leftPad - 8, y + 4);
+            }
+
+            // Dikey Orta Çizgi (Referans)
+            ctx.strokeStyle = "#1a3a1a"; ctx.beginPath();
+            ctx.moveTo(leftPad, centerY); ctx.lineTo(w-rightPad, centerY); ctx.stroke();
+
+            // ZAMAN EKSENİ HESABI
+            // hOffset kadar geçmişe bakıyoruz
+            const currentTime = sim.time;
+            const viewEndTime = currentTime - sim.hOffset;
+            const viewStartTime = viewEndTime - sim.windowSec;
+
+            // SETPOINT Çizgisi
+            ctx.setLineDash([10, 8]); ctx.strokeStyle = "rgba(255, 50, 50, 0.5)";
+            let spy = toY(sim.sp, centerY, pxPerUnit);
+            if (spy >= 0 && spy <= h) {
+                ctx.beginPath(); ctx.moveTo(leftPad, spy); ctx.lineTo(w - rightPad, spy); ctx.stroke();
+            }
+            ctx.setLineDash([]);
+
+            // PV ÇİZGİSİ (ANA DALGA)
+            ctx.strokeStyle = "#00ff66"; ctx.lineWidth = 2.5;
+            ctx.shadowBlur = 5; ctx.shadowColor = "#00ff66";
+            ctx.beginPath();
+            let first = true;
+            for (let i = 0; i < sim.history.length; i++) {
+                let p = sim.history[i];
+                if (p.t < viewStartTime || p.t > viewEndTime) continue;
+                
+                let x = leftPad + ((p.t - viewStartTime) / sim.windowSec) * plotW;
+                let y = toY(p.pv, centerY, pxPerUnit);
+                
+                if (first) { ctx.moveTo(x, y); first = false; } 
+                else { ctx.lineTo(x, y); }
+            }
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+
+            // TEPE NOKTALARI
+            ctx.fillStyle = "#ffd54a";
+            sim.peaks.forEach(p => {
+                if (p.t >= viewStartTime && p.t <= viewEndTime) {
+                    let x = leftPad + ((p.t - viewStartTime) / sim.windowSec) * plotW;
+                    let y = toY(p.value, centerY, pxPerUnit);
+                    ctx.beginPath(); ctx.arc(x, y, 4, 0, Math.PI*2); ctx.fill();
+                }
+            });
+        }
+
+        function loop() {
+            if (sim.running) {
+                const error = sim.sp - sim.pv;
+                const deriv = -(sim.pv - sim.lastPv) / sim.dt;
+                const out = sim.kp * error + sim.ki * sim.integral + sim.kd * deriv;
+                const pwm = Math.max(0, Math.min(100, out));
+
+                if (out === pwm) sim.integral += error * sim.dt;
+                
+                const ydd = sim.Kplant * sim.wn * sim.wn * pwm - 2 * sim.zeta * sim.wn * sim.pvDot - sim.wn * sim.wn * sim.pv;
+                const oldPv = sim.pv;
+                sim.pvDot += ydd * sim.dt;
+                sim.pv += sim.pvDot * sim.dt;
+                
+                const slope = sim.pv - oldPv;
+                if (sim.prevSlope > 0 && slope <= 0 && Math.abs(sim.pv - sim.sp) > 0.5) {
+                    sim.peaks.push({t: sim.time, value: sim.pv});
+                    if (sim.peaks.length > 20) sim.peaks.shift();
+                    if (sim.peaks.length >= 3) {
+                        const t2 = sim.peaks[sim.peaks.length-1];
+                        const t1 = sim.peaks[sim.peaks.length-2];
+                        sim.lastTu = t2.t - t1.t;
+                        const r = Math.abs(t2.value - sim.sp) / Math.abs(t1.value - sim.sp);
+                        sim.oscType = r < 0.92 ? "SÖNÜMLÜ" : (r > 1.08 ? "KARARSIZ" : "KRİTİK SALINIM");
+                    }
+                }
+                sim.prevSlope = slope;
+                sim.lastPv = oldPv;
+                sim.time += sim.dt;
+                sim.history.push({t: sim.time, pv: sim.pv});
+                if (sim.history.length > 5000) sim.history.shift(); // 100 saniyelik hafıza
+
+                el.realPv.textContent = sim.pv.toFixed(1);
+                el.realPwm.textContent = pwm.toFixed(0);
+                el.realOscType.textContent = sim.oscType;
+                
+                if (sim.znMode && sim.oscType.includes("KRİTİK")) {
+                    const ku = sim.kp; const tu = sim.lastTu;
+                    const kp = 0.6 * ku; const ki = (2 * kp) / tu; const kd = (kp * tu) / 8;
+                    el.autoKu.textContent = ku.toFixed(2);
+                    el.autoTu.textContent = tu.toFixed(2) + "s";
+                    el.autoPid.textContent = `Kp:${kp.toFixed(1)} Ki:${ki.toFixed(2)} Kd:${kd.toFixed(2)}`;
+                }
+            }
+            window.sync();
+            draw();
+            requestAnimationFrame(loop);
+        }
+
+        document.getElementById("btn-reset").onclick = () => {
+            sim.pv = 0; sim.pvDot = 0; sim.integral = 0; sim.history = []; sim.peaks = []; sim.time = 0;
+        };
+        el.btnRun.onclick = () => { sim.running = !sim.running; el.btnRun.textContent = sim.running ? "⏸ Duraklat" : "▶ Devam Et"; };
+        el.btnZN.onclick = () => { sim.znMode = !sim.znMode; el.btnZN.style.background = sim.znMode ? "#c0392b" : "#8e44ad"; el.btnZN.textContent = sim.znMode ? "Z-N MODU: AÇIK" : "Z-N MODU: KAPALI"; };
+
+        loop();
+    })();
+</script>
+</body>
+</html>
