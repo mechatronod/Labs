@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PID Analiz Laboratuvarı - okanduymazlar.com</title>
+    <style>
+        body { background: #f0f2f5; margin: 0; padding: 20px; font-family: sans-serif; }
+        #pid-v12 { background: #fff; border: 2px solid #2c3e50; padding: 20px; border-radius: 12px; max-width: 1000px; margin: auto; box-shadow: 0 10px 30px rgba(0,0,0,0.1); }
+        .lcd { display: flex; justify-content: space-around; background: #000; color: #0f0; padding: 15px; border-radius: 8px; font-family: monospace; font-size: 18px; margin-bottom: 20px; border: 3px solid #333; }
+        .grid-container { display: grid; grid-template-columns: 300px 1fr; gap: 20px; }
+        .control-panel { display: flex; flex-direction: column; gap: 10px; }
+        .card { background: #fff; padding: 15px; border: 1px solid #ddd; border-radius: 8px; }
+        canvas { background: #000; border-radius: 8px; width: 100%; height: auto; cursor: crosshair; }
+        input[type=range] { width: 100%; cursor: pointer; }
+        button { width: 100%; padding: 12px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; transition: 0.3s; }
+        .btn-orange { background: #e67e22; color: white; }
+        .btn-dark { background: #2c3e50; color: white; margin-top: 5px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 13px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: center; }
+        th { background: #2c3e50; color: white; }
+    </style>
+</head>
+<body>
+
+<div id="pid-v12">
+    <div class="lcd">
+        <span>HEDEF: <b id="real-sp">50</b></span>
+        <span>MEVCUT: <b id="real-pv">0</b></span>
+        <span style="color: #ffa500;">PWM: %<b id="real-pwm">0</b></span>
+    </div>
+
+    <div class="grid-container">
+        <div class="control-panel">
+            <div class="card">
+                <label>Hedef (SP): <b id="txt-sp">50</b></label>
+                <input type="range" id="input-sp" min="10" max="90" value="50">
+                <label style="color:#d35400;">Kp: <b id="txt-kp">1.0</b></label>
+                <input type="range" id="input-kp" min="0" max="60" step="0.1" value="1.0">
+                <label style="color:#27ae60;">Ki: <b id="txt-ki">0.00</b></label>
+                <input type="range" id="input-ki" min="0" max="10" step="0.01" value="0.00">
+                <label style="color:#2980b9;">Kd: <b id="txt-kd">0.00</b></label>
+                <input type="range" id="input-kd" min="0" max="10" step="0.05" value="0.00">
+                <button class="btn-orange" onclick="togglePause()" id="btn-pause">⏸ DONDUR VE ÖLÇ</button>
+                <button class="btn-dark" onclick="resetSim()">SIFIRLA</button>
+            </div>
+            
+            <div class="card" style="background: #f1f8ff;">
+                <small>Dikey Zoom:</small>
+                <input type="range" id="input-y-zoom" min="2" max="25" value="8">
+                <small>Yatay Zoom:</small>
+                <input type="range" id="input-x-zoom" min="0.5" max="5" step="0.1" value="2">
+            </div>
+        </div>
+
+        <div style="background: #000; border-radius: 8px; padding: 5px; position: relative;">
+            <canvas id="graphV12" width="800" height="500"></canvas>
+            <div style="position:absolute; bottom:15px; left:15px; color:#0f0; font-size:10px;">Grid: 0.2s</div>
+        </div>
+    </div>
+
+    <table>
+        <tr><th>Metot</th><th>Kp</th><th>Ki</th><th>Kd</th></tr>
+        <tr><td>PID</td><td>0.6 Ku</td><td>2.0 Kp / Tu</td><td>Kp * Tu / 8</td></tr>
+    </table>
+</div>
+
+<script>
+    const canvas = document.getElementById('graphV12');
+    const ctx = canvas.getContext('2d');
+    let sim = { sp: 50, kp: 1.0, ki: 0.0, kd: 0.0, pv: 0, integral: 0, lastError: 0, pwm: 0, history: [], dt: 0.05, frameCount: 0, isPaused: false, yZoom: 8, xZoom: 2 };
+
+    function runLoop() {
+        if (!sim.isPaused) {
+            let error = sim.sp - sim.pv;
+            sim.integral = Math.max(-15, Math.min(15, sim.integral + error * sim.dt));
+            let derivative = (error - sim.lastError) / sim.dt;
+            sim.pwm = Math.max(0, Math.min(100, (sim.kp * error) + (sim.ki * sim.integral) + (sim.kd * derivative)));
+            sim.pv += (sim.pwm * 0.45 - sim.pv * 0.25) * 0.1; 
+            sim.lastError = error;
+            sim.frameCount++;
+            if(sim.frameCount % 4 === 0) {
+                sim.history.push({pv: sim.pv, sp: sim.sp});
+                if(sim.history.length > 1000) sim.history.shift();
+            }
+        }
+        draw();
+        updateUI();
+        requestAnimationFrame(runLoop);
+    }
+
+    function draw() {
+        ctx.clearRect(0,0,canvas.width, canvas.height);
+        const center = canvas.height / 2;
+        const xStep = 30 * sim.xZoom;
+        ctx.strokeStyle = "#1a3a1a";
+        for(let i=0; i<=canvas.width; i+=xStep) { ctx.beginPath(); ctx.moveTo(i,0); ctx.lineTo(i,canvas.height); ctx.stroke(); }
+        ctx.strokeStyle = "rgba(255,0,0,0.5)"; ctx.setLineDash([5,5]);
+        ctx.beginPath(); ctx.moveTo(0, center); ctx.lineTo(canvas.width, center); ctx.stroke(); ctx.setLineDash([]);
+        ctx.strokeStyle = "#0f0"; ctx.lineWidth = 3; ctx.beginPath();
+        let startIdx = Math.max(0, sim.history.length - Math.floor(canvas.width/(xStep/8)));
+        for(let i=startIdx; i<sim.history.length; i++) {
+            let x = (i-startIdx)*(xStep/8);
+            let y = center - (sim.history[i].pv - sim.sp)*sim.yZoom;
+            if(i===startIdx) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+        }
+        ctx.stroke();
+    }
+
+    function updateUI() {
+        sim.sp = parseFloat(document.getElementById('input-sp').value);
+        sim.kp = parseFloat(document.getElementById('input-kp').value);
+        sim.ki = parseFloat(document.getElementById('input-ki').value);
+        sim.kd = parseFloat(document.getElementById('input-kd').value);
+        sim.yZoom = parseFloat(document.getElementById('input-y-zoom').value);
+        sim.xZoom = parseFloat(document.getElementById('input-x-zoom').value);
+        document.getElementById('real-sp').innerText = sim.sp;
+        document.getElementById('real-pv').innerText = sim.pv.toFixed(1);
+        document.getElementById('real-pwm').innerText = Math.round(sim.pwm);
+        document.getElementById('txt-sp').innerText = sim.sp;
+        document.getElementById('txt-kp').innerText = sim.kp.toFixed(1);
+        document.getElementById('txt-ki').innerText = sim.ki.toFixed(2);
+        document.getElementById('txt-kd').innerText = sim.kd.toFixed(2);
+    }
+
+    window.togglePause = () => { sim.isPaused = !sim.isPaused; document.getElementById('real-status'); document.getElementById('btn-pause').innerText = sim.isPaused ? "▶ DEVAM ET" : "⏸ DONDUR VE ÖLÇ"; };
+    window.resetSim = () => { sim.pv = 0; sim.integral = 0; sim.history = []; if(sim.isPaused) togglePause(); };
+    runLoop();
+})();
+</script>
+
+</body>
+</html>
