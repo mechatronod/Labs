@@ -7,11 +7,13 @@
     <style>
         body { margin: 0; padding: 20px; background-color: #dcdde1; font-family: 'Segoe UI', sans-serif; display: flex; justify-content: center; }
         #stepper-game { background: #f0f4f7; border: 2px solid #2c3e50; padding: 25px; border-radius: 15px; max-width: 980px; width: 100%; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
-        #multimeter { background: #222; color: #0be881; padding: 20px; border: 5px solid #444; border-radius: 10px; font-family: 'Courier New', monospace; font-size: 28px; width: 210px; text-align: center; box-shadow: inset 0 0 10px #000; }
-        .wire-unit:hover { transform: translateY(-3px); }
-        button { cursor: pointer; transition: 0.2s; border: none; border-radius: 8px; font-weight: bold; }
-        button:hover { opacity: 0.9; }
-        @media (max-width: 600px) { #wire-grid { grid-template-columns: repeat(2, 1fr) !important; } }
+        #multimeter { background: #222; color: #0be881; padding: 20px; border: 5px solid #444; border-radius: 10px; font-family: 'Courier New', monospace; font-size: 28px; width: 220px; text-align: center; box-shadow: inset 0 0 15px #000; margin: auto; }
+        .wire-unit { background:#fff; padding:10px; border-radius:10px; text-align:center; box-shadow:0 2px 4px rgba(0,0,0,0.1); transition: 0.2s; }
+        .wire-unit:hover { transform: translateY(-3px); box-shadow: 0 5px 10px rgba(0,0,0,0.15); }
+        button { cursor: pointer; transition: 0.2s; border: none; border-radius: 8px; font-weight: bold; padding: 12px 25px; font-size: 16px; }
+        button:active { transform: scale(0.95); }
+        #game-feedback { margin-top:20px; padding:15px; text-align:center; border-radius:8px; display:none; font-weight: bold; }
+        select { width: 100%; margin-top: 5px; cursor: pointer; padding: 4px; border-radius: 4px; border: 1px solid #ccc; }
     </style>
 </head>
 <body>
@@ -29,25 +31,25 @@
             <span id="ohm-val">---</span> <small>Ω</small>
         </div>
 
-        <div id="motor-visual" style="width:110px; height:110px; border-radius:50%; border:8px solid #95a5a6; display:flex; align-items:center; justify-content:center; background:#bdc3c7;">
+        <div id="motor-visual" style="width:110px; height:110px; border-radius:50%; border:8px solid #95a5a6; display:flex; align-items:center; justify-content:center; background:#bdc3c7; transition: transform 0.1s linear;">
             <div style="width:80%; height:12px; background:#34495e; border-radius:5px;"></div>
         </div>
 
         <div style="background:#fff; padding:15px; border-radius:10px; min-width:280px; box-shadow:0 2px 5px rgba(0,0,0,0.08);">
-            <div><strong>Motor Tipi:</strong> <span id="motor-type-label">-</span></div>
-            <div style="margin-top:8px;"><strong>Seçilen Uçlar:</strong> <span id="selected-info">-</span></div>
-            <div style="margin-top:8px;"><strong>İpucu:</strong> <span id="hint-box">-</span></div>
+            <div><strong>Motor:</strong> <span id="motor-type-label">-</span></div>
+            <div style="margin-top:8px;"><strong>Prob:</strong> <span id="selected-info">-</span></div>
+            <div style="margin-top:8px;"><strong>İpucu:</strong> <small id="hint-box">-</small></div>
         </div>
     </div>
 
     <div id="wire-grid" style="display:grid; gap:15px; margin-bottom:25px;"></div>
 
     <div style="text-align:center; border-top:2px solid #dcdde1; padding-top:20px;">
-        <button onclick="verifySubmission()" style="background:#27ae60; color:white; padding:12px 25px; font-size:16px;">BAĞLANTIYI TEST ET</button>
-        <button onclick="initSim()" style="background:#34495e; color:white; padding:12px 25px; font-size:16px; margin-left:10px;">YENİ MOTOR / RESET</button>
+        <button onclick="window.verifySubmission()" style="background:#27ae60; color:white;">BAĞLANTIYI TEST ET</button>
+        <button onclick="window.initSim()" style="background:#34495e; color:white; margin-left:10px;">YENİ MOTOR / RESET</button>
     </div>
 
-    <div id="game-feedback" style="margin-top:20px; padding:15px; text-align:center; border-radius:8px; display:none;"></div>
+    <div id="game-feedback"></div>
 </div>
 
 <script>
@@ -55,30 +57,25 @@
         let state = { selected: [], motorType: 4, mission: null, model: null, animInterval: null };
 
         const missions = [
-            { id: "basic4", type: 4, text: "4 kablolu motorda iki fazı bulun ve uçları A+, A-, B+, B- olarak etiketleyin.", hint: "Aynı fazın iki ucu arasında direnç vardır." },
-            { id: "basic6", type: 6, text: "6 kablolu motorda iki fazı ve orta uçları bulun. Uçları A+, Ac, A-, B+, Bc, B- olarak etiketleyin.", hint: "Uç-orta arası yarım, uç-uç arası tam direnç görülür." },
-            { id: "basic8", type: 8, text: "8 kablolu motorda yarım sargıları bulun. Uçları A1+, A1-, A2+, A2-, B1+, B1-, B2+, B2- olarak etiketleyin.", hint: "Sadece aynı yarım sargının uçları arasında direnç vardır." }
+            { id: "basic4", type: 4, text: "4 kablolu motorda iki fazı bulun (A+, A- ve B+, B-).", hint: "Aynı sargının iki ucu arasında direnç görülür." },
+            { id: "basic6", type: 6, text: "6 kablolu motorda fazları ve orta uçları (Ac, Bc) bulun.", hint: "Uç-orta arası yarım, uç-uç arası tam dirençtir." },
+            { id: "basic8", type: 8, text: "8 kablolu motorda 4 adet yarım sargıyı bulun.", hint: "Sadece aynı yarım sargı uçları arasında direnç vardır." }
         ];
 
-        // --- YARDIMCI ALGORİTMALAR ---
+        // Temel Fonksiyonlar
         function shuffle(arr) { return [...arr].sort(() => Math.random() - 0.5); }
         function sortNums(arr) { return [...arr].sort((a, b) => a - b); }
         function sameArray(a, b) { return a.length === b.length && a.every((v, i) => v === b[i]); }
-        function sameSetOfPairs(sP, tP) {
-            const s = sP.map(p => sortNums(p).join("-")).sort().join("|");
-            const t = tP.map(p => sortNums(p).join("-")).sort().join("|");
-            return s === t;
-        }
 
-        // --- MOTOR GENERATOR ---
+        // Motor Üretici
         function generateMotor(type) {
             const ids = shuffle([...Array(type).keys()]);
-            if (type === 4) return { type: 4, coils: { A: [ids[0], ids[1]], B: [ids[2], ids[3]] }, labels: { [ids[0]]: "A+", [ids[1]]: "A-", [ids[2]]: "B+", [ids[3]]: "B-" } };
-            if (type === 6) return { type: 6, coils: { A: [ids[0], ids[1], ids[2]], B: [ids[3], ids[4], ids[5]] }, labels: { [ids[0]]: "A+", [ids[1]]: "Ac", [ids[2]]: "A-", [ids[3]]: "B+", [ids[4]]: "Bc", [ids[5]]: "B-" } };
-            if (type === 8) return { type: 8, halfCoils: { A1: [ids[0], ids[1]], A2: [ids[2], ids[3]], B1: [ids[4], ids[5]], B2: [ids[6], ids[7]] }, labels: { [ids[0]]: "A1+", [ids[1]]: "A1-", [ids[2]]: "A2+", [ids[3]]: "A2-", [ids[4]]: "B1+", [ids[5]]: "B1-", [ids[6]]: "B2+", [ids[7]]: "B2-" } };
+            if (type === 4) return { type: 4, coils: { A: [ids[0], ids[1]], B: [ids[2], ids[3]] } };
+            if (type === 6) return { type: 6, coils: { A: [ids[0], ids[1], ids[2]], B: [ids[3], ids[4], ids[5]] } };
+            if (type === 8) return { type: 8, halfCoils: { A1: [ids[0], ids[1]], A2: [ids[2], ids[3]], B1: [ids[4], ids[5]], B2: [ids[6], ids[7]] } };
         }
 
-        // --- ÖLÇÜM MANTIĞI ---
+        // Multimetre Ölçüm Algoritması
         function measureResistance(w1, w2) {
             const m = state.model;
             if (w1 === w2) return "---";
@@ -88,8 +85,8 @@
                 for (let p of Object.values(m.coils)) {
                     if (p.includes(w1) && p.includes(w2)) {
                         const pair = sortNums([w1, w2]);
-                        if (sameArray(pair, sortNums([p[0], p[1]])) || sameArray(pair, sortNums([p[1], p[2]]))) return "2.2";
-                        return "4.4";
+                        const isCenter = w1 === p[1] || w2 === p[1];
+                        return isCenter ? "2.2" : "4.4";
                     }
                 }
             } else if (m.type === 8) {
@@ -98,42 +95,8 @@
             return "∞";
         }
 
-        // --- DOĞRULAMA FONKSİYONLARI (BURASI KRİTİK) ---
-        function verify4Wire(student) {
-            const map = {}; for(let i=0; i<4; i++) map[student[i]] = i;
-            if (["A+", "A-", "B+", "B-"].some(l => map[l] === undefined)) return { ok: false, msg: "Tüm etiketleri kullanmalısınız." };
-            
-            const sA = sortNums([map["A+"], map["A-"]]), sB = sortNums([map["B+"], map["B-"]]);
-            const tA = sortNums(state.model.coils.A), tB = sortNums(state.model.coils.B);
-
-            if ((sameArray(sA, tA) && sameArray(sB, tB)) || (sameArray(sA, tB) && sameArray(sB, tA))) {
-                return { ok: true, msg: "Tebrikler! Fazları doğru buldunuz." };
-            }
-            return { ok: false, msg: "Faz grupları yanlış. Sargıları tekrar ölçün." };
-        }
-
-        function verify6Wire(student) {
-            const map = {}; for(let i=0; i<6; i++) map[student[i]] = i;
-            if (["A+", "Ac", "A-", "B+", "Bc", "B-"].some(l => map[l] === undefined)) return { ok: false, msg: "Eksik etiketleme yaptınız." };
-            
-            const checkPhase = (p, t) => map[p+"c"] === t[1] && sameArray(sortNums([map[p+"+"], map[p+"-"]]), sortNums([t[0], t[2]]));
-            if ((checkPhase("A", state.model.coils.A) && checkPhase("B", state.model.coils.B)) || (checkPhase("A", state.model.coils.B) && checkPhase("B", state.model.coils.A))) {
-                return { ok: true, msg: "Harika! Orta uçlar ve fazlar tam isabet." };
-            }
-            return { ok: false, msg: "Orta uçlar veya faz grupları hatalı." };
-        }
-
-        function verify8Wire(student) {
-            const map = {}; for(let i=0; i<8; i++) map[student[i]] = i;
-            const sPairs = [ [map["A1+"], map["A1-"]], [map["A2+"], map["A2-"]], [map["B1+"], map["B1-"]], [map["B2+"], map["B2-"]] ];
-            const tPairs = Object.values(state.model.halfCoils);
-
-            if (sameSetOfPairs(sPairs, tPairs)) return { ok: true, msg: "Mükemmel! 4 yarım sargıyı da doğru tespit ettiniz." };
-            return { ok: false, msg: "Yarım sargı eşleşmeleri hatalı." };
-        }
-
-        // --- UI VE TETİKLEYİCİLER ---
-        function selectWire(id) {
+        // Tıklama Fonksiyonu (Globale bağlandı)
+        window.selectWire = function(id) {
             if (state.selected.includes(id)) {
                 state.selected = state.selected.filter(x => x !== id);
                 document.getElementById("w-"+id).style.background = "#95a5a6";
@@ -142,65 +105,88 @@
                 document.getElementById("w-"+id).style.background = "#e74c3c";
             }
 
-            if (state.selected.length === 2) {
-                document.getElementById("ohm-val").innerText = measureResistance(state.selected[0], state.selected[1]);
+            if (state.selected.length === 1) document.getElementById("selected-info").innerText = "Kablo " + (state.selected[0] + 1);
+            else if (state.selected.length === 2) {
+                const r = measureResistance(state.selected[0], state.selected[1]);
+                document.getElementById("ohm-val").innerText = r;
+                document.getElementById("selected-info").innerText = "Ölçülüyor...";
+                
+                const currentSelection = [...state.selected];
                 setTimeout(() => {
-                    state.selected.forEach(x => document.getElementById("w-"+x).style.background = "#95a5a6");
-                    state.selected = [];
-                }, 800);
+                    currentSelection.forEach(x => {
+                        const el = document.getElementById("w-"+x);
+                        if (el) el.style.background = "#95a5a6";
+                    });
+                    if (state.selected.length === 2) {
+                        state.selected = [];
+                        document.getElementById("selected-info").innerText = "-";
+                    }
+                }, 1200);
             }
-        }
+        };
 
+        // Doğrulama Mantığı
         window.verifySubmission = function() {
             const student = {};
-            const usedLabels = [];
+            const used = [];
             for(let i=0; i<state.motorType; i++) {
-                const val = document.getElementById("sel-"+i).value;
-                student[i] = val;
-                if(val !== "?") usedLabels.push(val);
+                const v = document.getElementById("sel-"+i).value;
+                student[i] = v;
+                if(v !== "?") used.push(v);
             }
 
-            if (new Set(usedLabels).size !== usedLabels.length) {
+            if (new Set(used).size !== used.length) {
                 showFeedback(false, "Hata: Bir etiketi birden fazla kabloya veremezsiniz!");
                 return;
             }
 
-            let result = { ok: false, msg: "Bilinmeyen hata." };
-            if (state.motorType === 4) result = verify4Wire(student);
-            else if (state.motorType === 6) result = verify6Wire(student);
-            else if (state.motorType === 8) result = verify8Wire(student);
+            let ok = false;
+            const map = {}; for(let i=0; i<state.motorType; i++) map[student[i]] = i;
 
-            showFeedback(result.ok, result.msg);
-            if(result.ok) animateMotor();
+            if (state.motorType === 4) {
+                const tA = sortNums(state.model.coils.A), tB = sortNums(state.model.coils.B);
+                const sA = sortNums([map["A+"], map["A-"]]), sB = sortNums([map["B+"], map["B-"]]);
+                ok = (sameArray(sA, tA) && sameArray(sB, tB)) || (sameArray(sA, tB) && sameArray(sB, tA));
+            } else if (state.motorType === 6) {
+                const check = (p, t) => map[p+"c"] === t[1] && sameArray(sortNums([map[p+"+"], map[p+"-"]]), sortNums([t[0], t[2]]));
+                ok = (check("A", state.model.coils.A) && check("B", state.model.coils.B)) || (check("A", state.model.coils.B) && check("B", state.model.coils.A));
+            } else if (state.motorType === 8) {
+                const sP = [ [map["A1+"], map["A1-"]], [map["A2+"], map["A2-"]], [map["B1+"], map["B1-"]], [map["B2+"], map["B2-"]] ];
+                const tP = Object.values(state.model.halfCoils);
+                const sS = sP.map(p => sortNums(p).join("-")).sort().join("|");
+                const tS = tP.map(p => sortNums(p).join("-")).sort().join("|");
+                ok = sS === tS;
+            }
+
+            showFeedback(ok, ok ? "TEBRİKLER! Bağlantılar doğru." : "HATA! Yanlış etiketleme veya gruplama.");
+            if(ok) animateMotor();
         };
 
         function showFeedback(ok, msg) {
             const fb = document.getElementById("game-feedback");
             fb.style.display = "block";
             fb.style.background = ok ? "#27ae60" : "#c0392b";
-            fb.innerText = msg;
             fb.style.color = "white";
+            fb.innerText = msg;
         }
 
         function animateMotor() {
             const motor = document.getElementById("motor-visual");
             let angle = 0;
-            const itv = setInterval(() => {
-                angle += 10;
-                motor.style.transform = `rotate(${angle}deg)`;
-            }, 50);
-            setTimeout(() => clearInterval(itv), 2000);
+            const itv = setInterval(() => { motor.style.transform = `rotate(${angle += 10}deg)`; }, 50);
+            setTimeout(() => clearInterval(itv), 2500);
         }
 
+        // Başlatma (Globale bağlandı)
         window.initSim = function() {
-            const mission = missions[Math.floor(Math.random() * missions.length)];
-            state.motorType = mission.type;
-            state.model = generateMotor(mission.type);
+            const m = missions[Math.floor(Math.random() * missions.length)];
+            state.motorType = m.type;
+            state.model = generateMotor(m.type);
             state.selected = [];
             
-            document.getElementById("mission-text").innerText = mission.text;
-            document.getElementById("hint-box").innerText = mission.hint;
-            document.getElementById("motor-type-label").innerText = mission.type + " Kablo";
+            document.getElementById("mission-text").innerText = m.text;
+            document.getElementById("hint-box").innerText = m.hint;
+            document.getElementById("motor-type-label").innerText = m.type + " Kablolu";
             document.getElementById("game-feedback").style.display = "none";
             document.getElementById("ohm-val").innerText = "---";
 
@@ -208,7 +194,7 @@
             grid.innerHTML = "";
             grid.style.gridTemplateColumns = `repeat(${state.motorType === 6 ? 3 : 4}, 1fr)`;
             
-            const opts = ["?", ...(["A+", "A-", "B+", "B-", "Ac", "Bc", "A1+", "A1-", "A2+", "A2-", "B1+", "B1-", "B2+", "B2-"].filter(l => {
+            const labels = ["?", ...(["A+", "A-", "B+", "B-", "Ac", "Bc", "A1+", "A1-", "A2+", "A2-", "B1+", "B1-", "B2+", "B2-"].filter(l => {
                 if(state.motorType === 4) return l.length === 2 && !l.includes("c");
                 if(state.motorType === 6) return l.length === 2;
                 return l.length === 3;
@@ -217,17 +203,16 @@
             for(let i=0; i<state.motorType; i++) {
                 const div = document.createElement("div");
                 div.className = "wire-unit";
-                div.style.cssText = "background:#fff; padding:10px; border-radius:8px; text-align:center; box-shadow:0 2px 4px rgba(0,0,0,0.1);";
                 div.innerHTML = `
-                    <div style="font-size:12px; margin-bottom:5px;">Kablo ${i+1}</div>
-                    <div id="w-${i}" onclick="selectWire(${i})" style="width:20px; height:40px; background:#95a5a6; margin:0 auto 10px; cursor:pointer; border-radius:3px;"></div>
-                    <select id="sel-${i}" style="width:100%; font-size:12px;">${opts.map(o => `<option value="${o}">${o}</option>`).join("")}</select>
+                    <div style="font-size:11px; margin-bottom:5px; color:#666;">KABLO ${i+1}</div>
+                    <div id="w-${i}" onclick="window.selectWire(${i})" style="width:24px; height:45px; background:#95a5a6; margin:0 auto 10px; cursor:pointer; border-radius:4px; border:2px solid #7f8c8d;"></div>
+                    <select id="sel-${i}">${labels.map(l => `<option value="${l}">${l}</option>`).join("")}</select>
                 `;
                 grid.appendChild(div);
             }
         };
 
-        initSim();
+        window.initSim();
     })();
 </script>
 </body>
