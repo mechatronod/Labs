@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PID ve Ziegler-Nichols Analizi</title>
+    <style>
+        body { margin: 0; padding: 10px; background-color: #f7f9fb; font-family: Arial, sans-serif; }
+        #pid-zn-app { box-sizing: border-box; }
+        @media (max-width: 900px) { .panel-container { grid-template-columns: 1fr !important; } }
+        input[type=range] { cursor: pointer; }
+    </style>
+</head>
+<body>
+
+<div id="pid-zn-app" style="background:#f7f9fb;border:2px solid #2c3e50;padding:20px;border-radius:12px;max-width:1200px;margin:auto;color:#1f2d3d;">
+    <h3 style="text-align:center;margin-top:0;color:#2c3e50;">PID ve Ziegler–Nichols Analiz Uygulaması</h3>
+
+    <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;background:#101820;color:#00ff88;padding:12px 14px;border-radius:8px;border:3px solid #222;font-family:monospace;font-size:17px;margin-bottom:16px;">
+        <div>HEDEF: <b id="real-sp">50.0</b></div>
+        <div>ÇIKIŞ: <b id="real-pv">0.0</b></div>
+        <div>PWM: <b id="real-pwm">0</b>%</div>
+        <div>DURUM: <b id="real-status">ÇALIŞIYOR</b></div>
+        <div>Z-N: <b id="real-osc-type">-</b></div>
+    </div>
+
+    <div class="panel-container" style="display:grid;grid-template-columns:330px 1fr;gap:20px;">
+        <div style="display:flex;flex-direction:column;gap:12px;">
+            <div style="background:#fff;padding:12px;border:1px solid #d7dde5;border-radius:8px;">
+                <h4 style="margin:0 0 10px 0;font-size:14px;color:#2c3e50;">Temel Parametreler</h4>
+
+                <label style="display:block;font-size:12px;font-weight:bold;">Hedef (SP): <b id="txt-sp">50.0</b></label>
+                <input type="range" id="input-sp" min="10" max="90" step="1" value="50" style="width:100%;margin-bottom:10px;">
+
+                <label style="display:block;font-size:12px;font-weight:bold;color:#d35400;">Kp (Oransal): <b id="txt-kp">1.00</b></label>
+                <input type="range" id="input-kp" min="0" max="30" step="0.05" value="1.00" style="width:100%;margin-bottom:8px;">
+
+                <label style="display:block;font-size:12px;font-weight:bold;color:#27ae60;">Ki (İntegral): <b id="txt-ki">0.00</b></label>
+                <input type="range" id="input-ki" min="0" max="8" step="0.01" value="0.00" style="width:100%;margin-bottom:8px;">
+
+                <label style="display:block;font-size:12px;font-weight:bold;color:#2980b9;">Kd (Türev): <b id="txt-kd">0.00</b></label>
+                <input type="range" id="input-kd" min="0" max="8" step="0.01" value="0.00" style="width:100%;margin-bottom:12px;">
+
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+                    <button id="btn-run" style="padding:10px;background:#16a085;color:#fff;border:none;border-radius:5px;cursor:pointer;font-weight:bold;">⏸ Durdur</button>
+                    <button id="btn-reset" style="padding:10px;background:#7f8c8d;color:#fff;border:none;border-radius:5px;cursor:pointer;font-weight:bold;">↺ Sıfırla</button>
+                </div>
+                <button id="btn-zn-mode" style="width:100%;padding:10px;background:#8e44ad;color:#fff;border:none;border-radius:5px;cursor:pointer;font-weight:bold;">Z-N Modu: KAPALI</button>
+            </div>
+
+            <div style="background:#f8fbff;padding:12px;border:1px solid #b9d6f2;border-radius:8px;">
+                <h4 style="margin:0 0 10px 0;font-size:14px;color:#21618c;">Grafik Ayarları</h4>
+                <label style="display:block;font-size:12px;">Dikey Ölçek (Y Zoom): <b id="txt-yzoom">1.0</b></label>
+                <input type="range" id="input-y-zoom" min="0.5" max="10" step="0.1" value="1" style="width:100%;margin-bottom:8px;">
+                <label style="display:block;font-size:12px;">Gösterilen Süre (s): <b id="txt-window">20</b></label>
+                <input type="range" id="input-window" min="5" max="60" step="1" value="20" style="width:100%;">
+            </div>
+
+            <div style="background:#eefaf2;padding:12px;border:1px solid #9ad3ae;border-radius:8px;">
+                <h4 style="margin:0 0 8px 0;font-size:14px;color:#1e8449;">Z-N Ölçümleri</h4>
+                <div style="font-size:12px;line-height:1.5;">
+                    Ku ≈ <b id="auto-ku">-</b> | Tu ≈ <b id="auto-tu">-</b><br>
+                    Önerilen PID: <span id="auto-pid" style="font-weight:bold; color:#1e8449;">-</span>
+                </div>
+            </div>
+        </div>
+
+        <div style="background:#000;border:4px solid #333;border-radius:8px;overflow:hidden;position:relative;">
+            <canvas id="graphPIDZN" width="820" height="500" style="width:100%;height:auto;background:#000;display:block;"></canvas>
+        </div>
+    </div>
+</div>
+
+<script>
+    (function() {
+        const canvas = document.getElementById("graphPIDZN");
+        const ctx = canvas.getContext("2d");
+
+        const sim = {
+            dt: 0.02, time: 0, running: true, znMode: false,
+            sp: 50, kp: 1.0, ki: 0.0, kd: 0.0,
+            integral: 0, lastPv: 0, lastError: 0,
+            pwm: 0, pv: 0, pvDot: 0,
+            Kplant: 1.0, wn: 1.8, zeta: 0.22,
+            yZoom: 1.0, windowSec: 20,
+            history: [], peaks: [],
+            prevSlope: 0, oscType: "-", lastTu: null
+        };
+
+        const el = {
+            sp: document.getElementById("input-sp"), kp: document.getElementById("input-kp"),
+            ki: document.getElementById("input-ki"), kd: document.getElementById("input-kd"),
+            yZoom: document.getElementById("input-y-zoom"), windowSec: document.getElementById("input-window"),
+            txtSp: document.getElementById("txt-sp"), txtKp: document.getElementById("txt-kp"),
+            txtKi: document.getElementById("txt-ki"), txtKd: document.getElementById("txt-kd"),
+            txtYZoom: document.getElementById("txt-yzoom"), txtWindow: document.getElementById("txt-window"),
+            realSp: document.getElementById("real-sp"), realPv: document.getElementById("real-pv"),
+            realPwm: document.getElementById("real-pwm"), realStatus: document.getElementById("real-status"),
+            realOscType: document.getElementById("real-osc-type"), btnRun: document.getElementById("btn-run"),
+            btnReset: document.getElementById("btn-reset"), btnZN: document.getElementById("btn-zn-mode"),
+            autoKu: document.getElementById("auto-ku"), autoTu: document.getElementById("auto-tu"), autoPid: document.getElementById("auto-pid")
+        };
+
+        function syncInputsToSim() {
+            sim.sp = parseFloat(el.sp.value);
+            sim.kp = parseFloat(el.kp.value);
+            sim.ki = sim.znMode ? 0 : parseFloat(el.ki.value);
+            sim.kd = sim.znMode ? 0 : parseFloat(el.kd.value);
+            sim.yZoom = parseFloat(el.yZoom.value);
+            sim.windowSec = parseFloat(el.windowSec.value);
+        }
+
+        function updateUI() {
+            el.txtSp.textContent = sim.sp.toFixed(1);
+            el.txtKp.textContent = sim.kp.toFixed(2);
+            el.txtKi.textContent = sim.ki.toFixed(2);
+            el.txtKd.textContent = sim.kd.toFixed(2);
+            el.txtYZoom.textContent = sim.yZoom.toFixed(1);
+            el.txtWindow.textContent = sim.windowSec.toFixed(0);
+            el.realSp.textContent = sim.sp.toFixed(1);
+            el.realPv.textContent = sim.pv.toFixed(2);
+            el.realPwm.textContent = sim.pwm.toFixed(0);
+            el.realStatus.textContent = sim.running ? "ÇALIŞIYOR" : "DURDURULDU";
+            el.realOscType.textContent = sim.oscType;
+            el.btnZN.style.background = sim.znMode ? "#c0392b" : "#8e44ad";
+            el.btnZN.textContent = sim.znMode ? "Z-N Modu: AÇIK" : "Z-N Modu: KAPALI";
+
+            if (sim.znMode && sim.lastTu && sim.oscType.includes("KRİTİK")) {
+                const ku = sim.kp; const tu = sim.lastTu;
+                const kp = 0.6 * ku; const ki = (2 * kp) / tu; const kd = (kp * tu) / 8;
+                el.autoKu.textContent = ku.toFixed(2);
+                el.autoTu.textContent = tu.toFixed(2) + "s";
+                el.autoPid.textContent = `Kp=${kp.toFixed(2)} Ki=${ki.toFixed(2)} Kd=${kd.toFixed(2)}`;
+            } else {
+                el.autoKu.textContent = "-"; el.autoPid.textContent = "-";
+            }
+        }
+
+        function mapY(value, yMin, yMax, topPad, bottomY) {
+            const range = yMax - yMin;
+            const factor = (value - yMin) / range;
+            return bottomY - factor * (bottomY - topPad);
+        }
+
+        function draw() {
+            const w = canvas.width; const h = canvas.height;
+            ctx.fillStyle = "#000"; ctx.fillRect(0, 0, w, h);
+            
+            const leftPad = 50; const rightPad = 20; const topPad = 40; const bottomPad = 40;
+            const plotW = w - leftPad - rightPad; const bottomY = h - bottomPad;
+
+            // --- ZOOM HESAPLAMA ---
+            // Görüş alanı: SP merkezli, Zoom arttıkça daralan bir pencere
+            const span = 110 / sim.yZoom; 
+            const yMin = sim.sp - span/2;
+            const yMax = sim.sp + span/2;
+
+            // Grid (10'ar birimlik çizgiler)
+            ctx.strokeStyle = "#14321b"; ctx.lineWidth = 1;
+            ctx.fillStyle = "#8aa"; ctx.font = "11px monospace";
+            for (let y = -50; y <= 150; y += 10) {
+                if (y < yMin || y > yMax) continue;
+                let yy = mapY(y, yMin, yMax, topPad, bottomY);
+                ctx.beginPath(); ctx.moveTo(leftPad, yy); ctx.lineTo(w - rightPad, yy); ctx.stroke();
+                ctx.fillText(y, 10, yy + 4);
+            }
+
+            const startT = Math.max(0, sim.time - sim.windowSec);
+
+            // SP (Kırmızı Kesik Çizgi)
+            ctx.setLineDash([8, 6]); ctx.strokeStyle = "rgba(255,70,70,0.7)";
+            let spY = mapY(sim.sp, yMin, yMax, topPad, bottomY);
+            ctx.beginPath(); ctx.moveTo(leftPad, spY); ctx.lineTo(w - rightPad, spY); ctx.stroke();
+            ctx.setLineDash([]);
+
+            // PV (Yeşil Çizgi)
+            ctx.strokeStyle = "#00ff66"; ctx.lineWidth = 3;
+            ctx.beginPath();
+            sim.history.forEach((p, i) => {
+                let x = leftPad + ((p.t - startT) / sim.windowSec) * plotW;
+                let y = mapY(p.pv, yMin, yMax, topPad, bottomY);
+                if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+            });
+            ctx.stroke();
+
+            // Tepe Noktaları
+            ctx.fillStyle = "#ffd54a";
+            sim.peaks.forEach(p => {
+                let x = leftPad + ((p.t - startT) / sim.windowSec) * plotW;
+                let y = mapY(p.value, yMin, yMax, topPad, bottomY);
+                if (y > topPad && y < bottomY) {
+                    ctx.beginPath(); ctx.arc(x, y, 5, 0, Math.PI * 2); ctx.fill();
+                }
+            });
+        }
+
+        function stepSimulation() {
+            syncInputsToSim();
+            if (!sim.running) { updateUI(); draw(); return; }
+
+            const error = sim.sp - sim.pv;
+            const derivative = -(sim.pv - sim.lastPv) / sim.dt;
+            const raw = sim.kp * error + sim.ki * sim.integral + sim.kd * derivative;
+            sim.pwm = Math.max(0, Math.min(100, raw));
+
+            if ((raw >= 0 && raw <= 100) || (raw > 100 && error < 0) || (raw < 0 && error > 0)) {
+                sim.integral += error * sim.dt;
+            }
+            sim.integral = Math.max(-200, Math.min(200, sim.integral));
+
+            const u = sim.pwm / 100;
+            const ydd = sim.Kplant * sim.wn * sim.wn * (u * 100) - 2 * sim.zeta * sim.wn * sim.pvDot - sim.wn * sim.wn * sim.pv;
+            
+            const prevPv = sim.pv;
+            sim.pvDot += ydd * sim.dt;
+            sim.pv += sim.pvDot * sim.dt;
+
+            // Tepe tespiti
+            const slope = sim.pv - prevPv;
+            if (sim.prevSlope > 0 && slope <= 0 && Math.abs(sim.pv - sim.sp) > 1) {
+                sim.peaks.push({ t: sim.time, value: sim.pv });
+                if (sim.peaks.length > 15) sim.peaks.shift();
+                
+                if (sim.peaks.length >= 4) {
+                    const last4 = sim.peaks.slice(-4);
+                    const amps = last4.map(p => Math.abs(p.value - sim.sp));
+                    const ratio = amps[3] / amps[2];
+                    sim.lastTu = last4[3].t - last4[2].t;
+                    if (ratio < 0.92) sim.oscType = "SÖNÜMLÜ";
+                    else if (ratio > 1.08) sim.oscType = "BÜYÜYEN";
+                    else sim.oscType = "KRİTİK SALINIM";
+                }
+            }
+            sim.prevSlope = slope;
+            sim.lastPv = prevPv;
+            sim.time += sim.dt;
+
+            sim.history.push({ t: sim.time, pv: sim.pv });
+            if (sim.history.length > 3000) sim.history.shift();
+
+            updateUI();
+            draw();
+        }
+
+        el.btnRun.addEventListener("click", () => { sim.running = !sim.running; });
+        el.btnReset.addEventListener("click", () => { 
+            sim.time = 0; sim.pv = 0; sim.pvDot = 0; sim.integral = 0; 
+            sim.history = []; sim.peaks = []; sim.oscType = "-";
+        });
+        el.btnZN.addEventListener("click", () => { sim.znMode = !sim.znMode; });
+
+        setInterval(stepSimulation, 20);
+    })();
+</script>
+</body>
+</html>
